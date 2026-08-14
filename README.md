@@ -137,6 +137,7 @@ gifoutcpp [options] <input.gif> [output.gif]
       --max-tokens N how far a block is explored (default 10000)
       --strip       drop comments and application metadata, keep the loop block
   -b, --best        try the settings that win on some files and lose on others
+      --lookahead N try N match lengths per token instead of only the longest
       --keep-interlace  keep interlacing, which is otherwise dropped
   -i, --info        report structure and diagnostics, write nothing
   -c, --copy        copy the lzw data instead of re-encoding it
