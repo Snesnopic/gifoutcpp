@@ -65,7 +65,7 @@ jobs:
             asset_name: gifoutcpp-darwin-arm64
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Install Dependencies
         if: matrix.install_deps
@@ -107,7 +107,7 @@ jobs:
             release: '15.0'
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Build in VM
         uses: vmactions/freebsd-vm@v1
