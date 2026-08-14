@@ -17,7 +17,8 @@ struct ColorSpace {
     std::unordered_map<uint32_t, uint16_t> lookup;
 
     uint16_t intern(Color c) {
-        const uint32_t key = (static_cast<uint32_t>(c.r) << 16) | (c.g << 8) | c.b;
+        const uint32_t key = (static_cast<uint32_t>(c.r) << 16) |
+                             (static_cast<uint32_t>(c.g) << 8) | static_cast<uint32_t>(c.b);
         auto it = lookup.find(key);
         if (it != lookup.end()) return it->second;
         const auto id = static_cast<uint16_t>(colors.size());
@@ -35,7 +36,10 @@ struct Rect {
 
 Rect bounding_box(const std::vector<uint16_t>& a, const std::vector<uint16_t>& b, unsigned width,
                   unsigned height) {
-    unsigned min_x = width, min_y = height, max_x = 0, max_y = 0;
+    unsigned min_x = width;
+    unsigned min_y = height;
+    unsigned max_x = 0;
+    unsigned max_y = 0;
     for (unsigned y = 0; y < height; ++y) {
         const std::size_t row = static_cast<std::size_t>(y) * width;
         for (unsigned x = 0; x < width; ++x) {
@@ -147,7 +151,7 @@ private:
     // than holding a full canvas per frame, which is gigabytes on long animations
     class TargetWalker {
     public:
-        TargetWalker(const Optimizer& opt) : opt_(opt), canvas_(opt.area(), kTransparent) {}
+        explicit TargetWalker(const Optimizer& opt) : opt_(opt), canvas_(opt.area(), kTransparent) {}
 
         // canvas state while frame i is on screen
         const std::vector<uint16_t>& advance(std::size_t i) {
@@ -174,7 +178,7 @@ private:
     void paint(std::vector<uint16_t>& canvas, const std::vector<uint16_t>& src, const Frame& f,
                bool skip_transparent) const {
         for (unsigned y = 0; y < f.height; ++y) {
-            const std::size_t dst_row = static_cast<std::size_t>(f.top + y) * width_ + f.left;
+            const std::size_t dst_row = (static_cast<std::size_t>(f.top + y) * width_) + f.left;
             const std::size_t src_row = static_cast<std::size_t>(y) * f.width;
             for (unsigned x = 0; x < f.width; ++x) {
                 const uint16_t v = src[src_row + x];
@@ -186,7 +190,7 @@ private:
 
     void erase(std::vector<uint16_t>& canvas, const Frame& f) const {
         for (unsigned y = 0; y < f.height; ++y) {
-            const std::size_t row = static_cast<std::size_t>(f.top + y) * width_ + f.left;
+            const std::size_t row = (static_cast<std::size_t>(f.top + y) * width_) + f.left;
             std::fill(canvas.begin() + static_cast<std::ptrdiff_t>(row),
                       canvas.begin() + static_cast<std::ptrdiff_t>(row + f.width), background_id_);
         }
@@ -206,7 +210,10 @@ private:
         for (std::size_t i = 1; i < n; ++i) {
             Rect needed;
             const std::vector<uint16_t> cur = walker.advance(i);
-            unsigned min_x = width_, min_y = height_, max_x = 0, max_y = 0;
+            unsigned min_x = width_;
+            unsigned min_y = height_;
+            unsigned max_x = 0;
+            unsigned max_y = 0;
             for (unsigned y = 0; y < height_; ++y) {
                 const std::size_t row = static_cast<std::size_t>(y) * width_;
                 for (unsigned x = 0; x < width_; ++x) {
@@ -259,7 +266,7 @@ private:
             bool any_same = false;
             std::size_t same_count = 0;
             for (unsigned y = 0; y < rect.height; ++y) {
-                const std::size_t src_row = static_cast<std::size_t>(rect.top + y) * width_ + rect.left;
+                const std::size_t src_row = (static_cast<std::size_t>(rect.top + y) * width_) + rect.left;
                 const std::size_t dst_row = static_cast<std::size_t>(y) * rect.width;
                 for (unsigned x = 0; x < rect.width; ++x) {
                     const uint16_t want = target[src_row + x];
@@ -298,10 +305,12 @@ private:
                     } else if (nsame == 0) {
                         begin_same = p;
                         nsame = 1;
-                    } else if (nsame == 1) {
+                    } else if (nsame == 1 && p > 0) {
+                        // nsame is never 1 at p == 0, but reading pixels[p - 1] to find that
+                        // out is a bounds violation waiting for a refactor to reach it
                         const uint16_t previous =
-                            (p > 0 && transparent_mask[p - 1]) ? kTransparent : pixels[p - 1];
-                        if (p == 0 || pixels[p] != previous) {
+                            transparent_mask[p - 1] ? kTransparent : pixels[p - 1];
+                        if (pixels[p] != previous) {
                             for (std::size_t q = begin_same; q < p; ++q) transparent_mask[q] = true;
                             nsame = 2;
                         }
@@ -324,16 +333,18 @@ private:
             std::vector<bool> greedy_mask;
             if (options_.use_transparency && any_same) {
                 greedy_mask.assign(count, false);
-                std::size_t run_start = 0, run = 0;
+                std::size_t run_start = 0;
+                std::size_t run_length = 0;
                 for (std::size_t p = 0; p <= count; ++p) {
                     if (p < count && same[p]) {
-                        if (run == 0) run_start = p;
-                        ++run;
+                        if (run_length == 0) run_start = p;
+                        ++run_length;
                         continue;
                     }
-                    if (run >= 2)
-                        for (std::size_t q = run_start; q < run_start + run; ++q) greedy_mask[q] = true;
-                    run = 0;
+                    if (run_length >= 2)
+                        for (std::size_t q = run_start; q < run_start + run_length; ++q)
+                            greedy_mask[q] = true;
+                    run_length = 0;
                 }
                 if (std::find(greedy_mask.begin(), greedy_mask.end(), true) == greedy_mask.end() ||
                     greedy_mask == transparent_mask)

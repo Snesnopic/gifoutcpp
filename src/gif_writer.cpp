@@ -37,7 +37,8 @@ void put_extension(std::vector<uint8_t>& out, const Extension& ext) {
         for (std::size_t i = 0; i < block.size(); i += 255) {
             const std::size_t n = std::min<std::size_t>(255, block.size() - i);
             put_byte(out, static_cast<uint8_t>(n));
-            out.insert(out.end(), block.begin() + i, block.begin() + i + n);
+            const auto at = static_cast<std::ptrdiff_t>(i);
+            out.insert(out.end(), block.begin() + at, block.begin() + at + static_cast<std::ptrdiff_t>(n));
         }
     }
     put_byte(out, 0x00);
@@ -64,14 +65,16 @@ void put_lzw(std::vector<uint8_t>& out, const Frame& frame, bool reblock) {
         for (const uint8_t n : frame.block_sizes) {
             if (n == 0 || pos + n > frame.lzw.size()) break;
             put_byte(out, n);
-            out.insert(out.end(), frame.lzw.begin() + pos, frame.lzw.begin() + pos + n);
+            const auto at = static_cast<std::ptrdiff_t>(pos);
+            out.insert(out.end(), frame.lzw.begin() + at, frame.lzw.begin() + at + n);
             pos += n;
         }
     }
     while (pos < frame.lzw.size()) {
         const std::size_t n = std::min<std::size_t>(255, frame.lzw.size() - pos);
         put_byte(out, static_cast<uint8_t>(n));
-        out.insert(out.end(), frame.lzw.begin() + pos, frame.lzw.begin() + pos + n);
+        const auto at = static_cast<std::ptrdiff_t>(pos);
+        out.insert(out.end(), frame.lzw.begin() + at, frame.lzw.begin() + at + static_cast<std::ptrdiff_t>(n));
         pos += n;
     }
     put_byte(out, 0x00);

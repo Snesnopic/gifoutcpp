@@ -24,10 +24,10 @@ public:
         }
         static constexpr std::array<uint16_t, 4> kStart{0, 4, 2, 1};
         static constexpr std::array<uint16_t, 4> kStep{8, 8, 4, 2};
-        row_ += kStep[pass_];
+        row_ = static_cast<uint16_t>(row_ + kStep[static_cast<std::size_t>(pass_)]);
         while (row_ >= height_ && pass_ < 3) {
             ++pass_;
-            row_ = kStart[pass_];
+            row_ = kStart[static_cast<std::size_t>(pass_)];
         }
     }
 
@@ -63,7 +63,7 @@ DecodeResult decode_lzw(std::span<const uint8_t> lzw, uint8_t min_code_size,
     std::array<uint16_t, kMaxCodes> prefix{};
     std::array<uint8_t, kMaxCodes> suffix{};
     std::array<uint16_t, kMaxCodes> length{};
-    for (int i = 0; i < clear_code; ++i) {
+    for (std::size_t i = 0; i < static_cast<std::size_t>(clear_code); ++i) {
         prefix[i] = kMaxCodes;  // sentinel: no prefix
         suffix[i] = static_cast<uint8_t>(i);
         length[i] = 1;
@@ -102,10 +102,10 @@ DecodeResult decode_lzw(std::span<const uint8_t> lzw, uint8_t min_code_size,
         // gif packs codes little-endian across byte boundaries
         unsigned code = 0;
         for (int i = 0; i < code_bits; ++i) {
-            const std::size_t p = bit_pos + i;
+            const std::size_t p = bit_pos + static_cast<std::size_t>(i);
             code |= static_cast<unsigned>((lzw[p >> 3] >> (p & 7)) & 1) << i;
         }
-        bit_pos += code_bits;
+        bit_pos += static_cast<std::size_t>(code_bits);
 
         if (static_cast<int>(code) == clear_code) {
             next_code = eoi_code + 1;
@@ -134,23 +134,24 @@ DecodeResult decode_lzw(std::span<const uint8_t> lzw, uint8_t min_code_size,
         if (emit_code >= 0) {
             int walk = emit_code;
             while (walk != kMaxCodes) {
-                expand.push_back(suffix[walk]);
-                walk = prefix[walk];
+                expand.push_back(suffix[static_cast<std::size_t>(walk)]);
+                walk = prefix[static_cast<std::size_t>(walk)];
             }
         } else {
             int walk = previous;
             while (walk != kMaxCodes) {
-                expand.push_back(suffix[walk]);
-                walk = prefix[walk];
+                expand.push_back(suffix[static_cast<std::size_t>(walk)]);
+                walk = prefix[static_cast<std::size_t>(walk)];
             }
             expand.insert(expand.begin(), expand.back());
         }
         for (auto it = expand.rbegin(); it != expand.rend(); ++it) emit(*it);
 
         if (previous >= 0 && next_code < kMaxCodes) {
-            prefix[next_code] = static_cast<uint16_t>(previous);
-            suffix[next_code] = expand.back();
-            length[next_code] = static_cast<uint16_t>(length[previous] + 1);
+            const auto slot = static_cast<std::size_t>(next_code);
+            prefix[slot] = static_cast<uint16_t>(previous);
+            suffix[slot] = expand.back();
+            length[slot] = static_cast<uint16_t>(length[static_cast<std::size_t>(previous)] + 1);
             ++next_code;
             // deferred clear is legal: a full dictionary may run on without a clear code
             if (next_code == (1 << code_bits) && code_bits < kMaxCodeBits) ++code_bits;

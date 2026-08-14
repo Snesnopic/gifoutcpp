@@ -81,7 +81,8 @@ void print_info(const gifout::Stream& s) {
 }  // namespace
 
 int main(int argc, char** argv) {
-    bool info = false, quiet = false;
+    bool info = false;
+    bool quiet = false;
     gifout::Options options;
     std::vector<std::string> positional;
 
@@ -90,10 +91,12 @@ int main(int argc, char** argv) {
         if (arg == "-h" || arg == "--help") {
             usage();
             return 0;
-        } else if (arg == "-v" || arg == "--version") {
+        }
+        if (arg == "-v" || arg == "--version") {
             std::printf("%s\n", GIFOUTCPP_VERSION);
             return 0;
-        } else if (arg == "-i" || arg == "--info") {
+        }
+        if (arg == "-i" || arg == "--info") {
             info = true;
         } else if (arg == "-O" || arg == "--optimize") {
             options.restructure = true;
@@ -155,7 +158,6 @@ int main(int argc, char** argv) {
     const std::string& input = positional[0];
 
     if (info) {
-        gifout::ReadOptions read_options;
         auto read = gifout::read_gif_file(input);
         if (!quiet || read.has_errors()) print_diagnostics(read.diagnostics, input);
         if (!read.ok) {

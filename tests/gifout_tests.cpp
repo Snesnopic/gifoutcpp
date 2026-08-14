@@ -75,7 +75,7 @@ void test_lzw_round_trip() {
                     case 0: return 0;
                     case 1: return static_cast<uint8_t>((x / 3) % colors);
                     case 2: return static_cast<uint8_t>(rng() % colors);
-                    case 3: return static_cast<uint8_t>(((x + y) / 17) % colors);
+                    case 3: return static_cast<uint8_t>((static_cast<unsigned>(x + y) / 17u) % colors);
                     default: return static_cast<uint8_t>((x * y) % colors);
                 }
             });
@@ -417,7 +417,7 @@ void test_unoptimize_expands_frames() {
 // the facade is what a consumer sees, so it gets its own coverage
 void test_public_api() {
     std::vector<Frame> frames;
-    for (int i = 0; i < 3; ++i) {
+    for (unsigned i = 0; i < 3; ++i) {
         auto f = make_frame(48, 48, [&](uint16_t x, uint16_t y) -> uint8_t {
             const bool box = x >= i * 8u && x < i * 8u + 10 && y >= 10 && y < 20;
             return box ? 7 : static_cast<uint8_t>((x / 12 + y / 12) % 3);

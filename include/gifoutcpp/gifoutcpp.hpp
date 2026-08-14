@@ -1,8 +1,12 @@
+/**
+ * @file gifoutcpp.hpp
+ * @brief The whole library in one header, and the pipeline that runs its stages.
+ *
+ * Everything reachable from here is the supported surface, including the headers this
+ * one pulls in. Anything under src/ is not.
+ */
 #ifndef GIFOUTCPP_GIFOUTCPP_HPP
 #define GIFOUTCPP_GIFOUTCPP_HPP
-
-// the whole library in one header: everything below is the supported surface, and
-// the individual headers it pulls in are supported too. anything under src/ is not.
 
 #include <cstddef>
 #include <filesystem>
@@ -19,71 +23,97 @@
 #include "gifoutcpp/gif_types.hpp"
 #include "gifoutcpp/gif_writer.hpp"
 
+/** @brief Major version; changes when the API breaks. */
 #define GIFOUTCPP_VERSION_MAJOR 0
+/** @brief Minor version; changes when the API grows. */
 #define GIFOUTCPP_VERSION_MINOR 3
+/** @brief Patch version. */
 #define GIFOUTCPP_VERSION_PATCH 0
 
 namespace gifout {
 
-// what a consumer asks for, in the order the pipeline applies it
+/** @brief What to do to the file, in the order the pipeline applies it. */
 struct Options {
-    // l1 keeps the structure and only re-encodes; l2 may rebuild anything as long as
-    // the animation plays the same. asking for l1 with restructure on is an error.
+    /// L1 keeps the structure and only re-encodes; L2 may rebuild anything as long as
+    /// the animation plays the same. Asking for L1 with @ref restructure on is refused.
     Lossless level = Lossless::Rendering;
 
-    bool strip_metadata = false;  // drop comments and application blocks, keep the loop
-    bool unoptimize = false;      // expand every frame back to full screen first
-    bool restructure = false;     // crop frames, pick disposal and transparency, rebuild palettes
-    bool search_restarts = false; // search the lzw restart points instead of guessing
+    bool strip_metadata = false;   ///< Drop comments and application blocks, keep the loop block.
+    bool unoptimize = false;       ///< Expand every frame back to full screen first.
+    bool restructure = false;      ///< Crop frames, pick disposal and transparency, rebuild palettes.
+    bool search_restarts = false;  ///< Search the LZW restart points instead of guessing them.
 
-    // interlacing costs size and only buys progressive display over a slow link, so a
-    // re-encoded frame drops it. it is a rendering level change, never applied at l1.
+    /// Interlacing costs size and only buys progressive display over a slow link, so a
+    /// re-encoded frame drops it. That is a rendering level change, never applied at L1.
     bool keep_interlace = false;
 
-    // try the settings that are a win on some files and a loss on others, and keep
-    // whichever came out smallest. costs a full pass per candidate.
+    /// Try the settings that win on some files and lose on others, keeping whichever
+    /// came out smallest. Costs a full pass per candidate.
     bool try_everything = false;
 
-    bool copy_lzw = false;   // do not re-encode at all, only rewrite the container
-    bool reblock_lzw = false;  // re-chunk copied lzw at 255 bytes
+    bool copy_lzw = false;     ///< Do not re-encode at all, only rewrite the container.
+    bool reblock_lzw = false;  ///< Re-chunk copied LZW data at 255 bytes.
 
-    EncodeOptions encode;
-    SearchOptions search;  // alignment, max_tokens and threads live here
+    EncodeOptions encode;  ///< Code size and restart policy for the encoder.
+    SearchOptions search;  ///< Alignment, exploration limit and thread count.
 
-    // search the parse itself, as widely as the caller is willing to pay for. off by
-    // default because it is orders of magnitude slower than everything else here.
+    /// Search the parse itself, as widely as the caller will pay for. Off by default
+    /// because it is orders of magnitude slower than everything else here.
     BeamOptions beam;
-    bool search_parse = false;
+    bool search_parse = false;  ///< Enable the parse search described by @ref beam.
 };
 
+/** @brief What the pipeline produced, and what it decided along the way. */
 struct Result {
-    bool ok = false;
-    std::size_t input_bytes = 0;
-    std::size_t output_bytes = 0;
-    std::size_t frames_in = 0;
-    std::size_t frames_out = 0;
-    std::size_t metadata_removed = 0;
-    bool restructured = false;  // false when restructuring was asked for but not used
-    std::string variant;        // which candidate won when try_everything was on
-    // why restructuring did not happen or did not pay, empty when it did
-    std::string restructure_note;
-    std::vector<Diagnostic> diagnostics;
+    bool ok = false;                  ///< False when the input could not be read at all.
+    std::size_t input_bytes = 0;      ///< Size of the input.
+    std::size_t output_bytes = 0;     ///< Size of what was produced.
+    std::size_t frames_in = 0;        ///< Frames on the way in.
+    std::size_t frames_out = 0;       ///< Frames on the way out; fewer when some were merged.
+    std::size_t metadata_removed = 0; ///< Bytes of comments and application blocks dropped.
+    bool restructured = false;        ///< False when restructuring was asked for but not used.
+    std::string variant;              ///< Which candidate won, when Options::try_everything was on.
+    std::string restructure_note;     ///< Why restructuring did not happen or did not pay.
+    std::vector<Diagnostic> diagnostics;  ///< Everything the reader repaired or noticed.
 
+    /** @return True when the output is worth keeping over the input. */
     [[nodiscard]] bool smaller() const { return ok && output_bytes < input_bytes; }
 };
 
-// recompresses in memory. output is left untouched when the input cannot be read.
+/**
+ * @brief Recompresses a GIF held in memory.
+ * @param input   The whole file.
+ * @param output  Receives the result; left untouched when the input cannot be read.
+ * @param options What to do to the file.
+ * @return What was produced and decided; check Result::ok.
+ */
 Result recompress(std::span<const uint8_t> input, std::vector<uint8_t>& output,
                   const Options& options = {});
 
-// same, reading and writing files. the output file is only written when ok.
+/**
+ * @brief Recompresses a GIF from disk to disk.
+ * @param input   File to read.
+ * @param output  File to write; only written when the result is ok.
+ * @param options What to do to the file.
+ * @return What was produced and decided; check Result::ok.
+ */
 Result recompress_file(const std::filesystem::path& input, const std::filesystem::path& output,
                        const Options& options = {});
 
-// applies the pipeline to a stream that is already in memory, leaving i/o to the caller
+/**
+ * @brief Runs the pipeline over a stream the caller already has, leaving I/O to them.
+ *
+ * Useful for inspecting or editing frames between the stages.
+ *
+ * @param stream  The model, rewritten in place.
+ * @param output  Receives the serialised result.
+ * @param options What to do to the stream.
+ * @return What was produced and decided.
+ */
 Result recompress_stream(Stream& stream, std::vector<uint8_t>& output,
                          const Options& options = {});
 
+/** @return The library version, as "major.minor.patch". */
 [[nodiscard]] std::string version();
 
 }  // namespace gifout

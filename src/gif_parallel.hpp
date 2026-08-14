@@ -1,3 +1,7 @@
+/**
+ * @file gif_parallel.hpp
+ * @brief Internal: splitting an index range over threads without changing the answer.
+ */
 #ifndef GIFOUTCPP_GIF_PARALLEL_HPP
 #define GIFOUTCPP_GIF_PARALLEL_HPP
 
@@ -7,10 +11,17 @@
 
 namespace gifout {
 
-// runs body(i, worker) for i in [0, count), splitting the range into contiguous blocks.
-// every index is handled by exactly one thread and worker identifies which, so per
-// thread scratch space can be indexed by it without any locking. one thread is a plain
-// loop with no setup at all, and the result never depends on the split
+/**
+ * @brief Runs body(i, worker) for every i in [0, count), in contiguous blocks.
+ *
+ * Every index is handled by exactly one thread, and @c worker identifies which, so per
+ * thread scratch space can be indexed by it without any locking. One thread is a plain
+ * loop with no setup at all, and the result never depends on how the work was split.
+ *
+ * @param count   Number of indices to cover.
+ * @param threads Upper bound on threads; 1 or 0 stays on the caller's thread.
+ * @param body    Callable invoked as body(index, worker).
+ */
 template <typename Body>
 void parallel_for(std::size_t count, unsigned threads, Body body) {
     if (count == 0) return;
@@ -34,6 +45,11 @@ void parallel_for(std::size_t count, unsigned threads, Body body) {
     for (auto& t : pool) t.join();
 }
 
+/**
+ * @brief Turns a requested thread count into a usable one.
+ * @param requested Zero means "as many as the machine reports".
+ * @return At least one.
+ */
 inline unsigned resolve_threads(unsigned requested) {
     if (requested != 0) return requested;
     const unsigned hardware = std::thread::hardware_concurrency();

@@ -1,0 +1,40 @@
+Checks: >
+  bugprone-*,
+  cert-*,
+  clang-analyzer-*,
+  concurrency-*,
+  misc-*,
+  modernize-*,
+  performance-*,
+  portability-*,
+  readability-*,
+  -modernize-use-trailing-return-type,
+  -readability-identifier-length,
+  -readability-magic-numbers,
+  -cert-err58-cpp,
+  -misc-include-cleaner,
+  -readability-function-cognitive-complexity,
+  -readability-braces-around-statements,
+  -misc-non-private-member-variables-in-classes,
+  -bugprone-easily-swappable-parameters,
+  -readability-convert-member-functions-to-static,
+  -readability-uppercase-literal-suffix,
+  -misc-use-internal-linkage,
+  -modernize-use-designated-initializers,
+  -readability-implicit-bool-conversion,
+  -modernize-macro-to-enum,
+  -bugprone-infinite-loop,
+  -misc-const-correctness
+WarningsAsErrors: ''
+HeaderFilterRegex: '(include|src)/.*\.(hpp|cpp)$'
+
+# why some checks are off:
+#   trailing-return-type, braces-around-statements, uppercase-literal-suffix,
+#     implicit-bool-conversion, designated-initializers: house style
+#   non-private-member-variables: the model types are deliberately plain structs
+#   use-internal-linkage: it flags the public api, whose definitions live in .cpp
+#     files while the declarations sit in include/gifoutcpp
+#   infinite-loop: it misreads `for (i = n; i-- > 1;)`, where the condition steps
+#   easily-swappable-parameters: geometry really does come as (width, height)
+#   const-correctness: it flags variables that are mutated through member calls and
+#     inside lambdas, so every hit here was a false positive

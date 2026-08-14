@@ -154,7 +154,7 @@ private:
     }
 
     bool read_signature() {
-        auto magic = cursor_.take(6);
+        const auto magic = cursor_.take(6);
         if (magic.size() < 6 || std::memcmp(magic.data(), "GIF", 3) != 0) {
             note(Severity::Error, 0, "not a gif file");
             return false;

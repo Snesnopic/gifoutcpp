@@ -17,8 +17,8 @@ constexpr unsigned long long kNoPath = std::numeric_limits<unsigned long long>::
 // same chain a second time, which is half the memory traffic of the obvious version
 struct BlockEncoder {
     const PixelOrder& order;
-    std::size_t end_pos;
-    uint8_t min_code_bits;
+    std::size_t end_pos = 0;
+    uint8_t min_code_bits = 0;
     Dictionary& dict;
 
     int clear_code() const { return 1 << min_code_bits; }
@@ -56,7 +56,7 @@ struct BlockEncoder {
 
             // a block may also end inside this token: every prefix of a match is itself
             // a code, so the last token just comes out shorter
-            for (std::size_t q = (token_start / alignment + 1) * alignment; q < pos; q += alignment)
+            for (std::size_t q = ((token_start / alignment) + 1) * alignment; q < pos; q += alignment)
                 if (!report(q, bits + 2ull * static_cast<unsigned>(code_bits))) return;
 
             bits += static_cast<unsigned>(code_bits);
