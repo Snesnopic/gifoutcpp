@@ -33,3 +33,7 @@ target_link_libraries(decode_check PRIVATE gifout_core libgifsicle)
 add_executable(encode_check encode_check.cpp)
 target_include_directories(encode_check PRIVATE "${CHISEL_ROOT}/third_party/gifsicle/include")
 target_link_libraries(encode_check PRIVATE gifout_core libgifsicle)
+
+# throwaway experiment: how much does greedy lzw parsing leave on the table
+add_executable(parse_probe parse_probe.cpp)
+target_link_libraries(parse_probe PRIVATE gifout_core)
