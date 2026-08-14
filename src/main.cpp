@@ -31,6 +31,7 @@ void usage() {
         "  -j, --threads N   threads for the search, 0 means as many as the machine has\n"
         "                    (default 1; the output is identical whatever you pick)\n"
         "      --deinterlace drop interlacing, which costs size and only helps slow links\n"
+        "      --strip       drop comments and application metadata, keep the loop block\n"
         "  -i, --info        report structure and diagnostics, write nothing\n"
         "  -c, --copy        copy the lzw data instead of re-encoding it\n"
         "      --careful     take the code size from the palette, not from the pixels\n"
@@ -80,7 +81,7 @@ int main(int argc, char** argv) {
     gifout::WriteOptions write_options;
     gifout::EncodeOptions encode_options;
     gifout::SearchOptions search_options;
-    bool search = false, unoptimize = false;
+    bool search = false, unoptimize = false, strip = false;
     std::vector<std::string> positional;
 
     for (int i = 1; i < argc; ++i) {
@@ -100,6 +101,8 @@ int main(int argc, char** argv) {
             optimize_options.deinterlace = true;
         } else if (arg == "-c" || arg == "--copy") {
             copy = true;
+        } else if (arg == "--strip") {
+            strip = true;
         } else if (arg == "-u" || arg == "--unoptimize") {
             unoptimize = true;
         } else if (arg == "--level" && i + 1 < argc) {
@@ -168,6 +171,13 @@ int main(int argc, char** argv) {
 
     // restructuring can lose on some files, so the plain recompression is kept as a
     // floor: the tool must never hand back something larger than it could have
+    if (strip) {
+        const std::size_t removed = gifout::strip_metadata(result.stream);
+        if (!quiet && removed)
+            std::fprintf(stderr, "%s: %zu bytes of metadata dropped\n", input.c_str(), removed);
+        if (removed) copy = false;
+    }
+
     std::vector<uint8_t> fallback;
     if (unoptimize) {
         const auto stats = gifout::unoptimize(result.stream);

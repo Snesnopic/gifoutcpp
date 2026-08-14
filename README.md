@@ -61,8 +61,8 @@ What is verified today, on a corpus of 51 real GIFs from Wikimedia Commons
 * On the **whole** corpus, which the established pipeline cannot finish at all,
   `-O -s` gives **−11.57 %** in **1.05 minutes on ten threads** (5.8 on one),
   byte-identical output either way, all 51 rendering-identical.
-* With `-O` the corpus goes to **−7.87 % in 6.4 s**, against **−8.04 % in 4.8 s**
-  for `gifsicle -O3`: 0.19 % behind, smaller on 5 files, identical on 20.
+* With `-O` the corpus goes to **−8.00 % in 7.1 s**, against **−8.04 % in 4.8 s** for
+  `gifsicle -O3`; adding `--strip` reaches **−8.06 %**, slightly ahead of it.
   **All 51 outputs are rendering-identical** (`gifdiff -w`), and 360 mutated
   inputs go through `-O` under ASan/UBSan without a crash.
 
@@ -97,6 +97,7 @@ gifoutcpp [options] <input.gif> [output.gif]
   -s, --search      search for the best dictionary restart points, much slower
       --alignment N how far apart restart points may sit, in pixels (default 160)
       --max-tokens N how far a block is explored (default 10000)
+      --strip       drop comments and application metadata, keep the loop block
       --deinterlace drop interlacing, which costs size and only helps slow links
   -i, --info        report structure and diagnostics, write nothing
   -c, --copy        copy the lzw data instead of re-encoding it
@@ -133,11 +134,25 @@ reader and writer.
 **`-O` can never make a file larger.** Restructuring loses on some inputs, so the
 plain recompression is computed as well and the smaller of the two is written.
 
+**Four transparency variants, and the encoder picks.** Turning every unchanged pixel
+transparent makes photographs 18 % *larger*: it breaks runs of one colour into
+fragments. The frame is therefore built four ways — untouched, gifsicle's rule that
+only replaces a run whose colour differs from the last index emitted, that rule plus
+lone matching pixels, and the blunt "every run of two or more" — and each is encoded
+so the smallest one wins. This is why the greedy encoder had to exist before the
+optimizer did.
+
+**Metadata removal is a policy, not an optimization.** `--strip` drops comments and
+application blocks (keeping the loop block, which is animation rather than metadata).
+One file in the corpus carries 3966 bytes of XMP; nothing about the picture changes
+either way, so the tool does not decide this on its own.
+
 **The transparent index is per frame, not a reserved slot.** It only has to be an
 index that frame never paints with, and a frame rarely uses the whole table. Setting
 one aside globally instead is what makes a 256-colour animation overflow by exactly
 one entry and fall back to a local palette per frame, which on one 44-frame file cost
-33 KB on its own.
+33 KB on its own. A single spare slot serves every frame that needs one, because no
+pixel ever maps to it; adding one per frame instead grew a 32-colour palette to 256.
 
 **The background is transparent only if the first frame says so.** A GIF shows its
 background colour under uncovered area only when the first frame declares no

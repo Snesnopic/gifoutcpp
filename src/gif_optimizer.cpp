@@ -82,6 +82,7 @@ public:
         plain_index_.resize(stream_.frames.size());
         transparent_index_.resize(stream_.frames.size());
         greedy_index_.resize(stream_.frames.size());
+        lone_index_.resize(stream_.frames.size());
         assign_palettes();
         if (stats_.skipped.empty()) choose_variants();
         if (stats_.skipped.empty()) keep_background_transparent();
@@ -230,6 +231,8 @@ private:
         transparent_pixels_.reserve(stream_.frames.size());
         greedy_pixels_.clear();
         greedy_pixels_.reserve(stream_.frames.size());
+        lone_pixels_.clear();
+        lone_pixels_.reserve(stream_.frames.size());
 
         for (std::size_t i = 0; i < stream_.frames.size(); ++i) {
             Frame frame = stream_.frames[i];
@@ -266,12 +269,24 @@ private:
             // only becomes transparent if its colour differs from what was just emitted,
             // otherwise replacing it would break a longer run of the same index
             std::vector<uint16_t> transparent_variant;
+            // and the same walk builds the variant that also swallows lone matching
+            // pixels, which is the extra try gifsicle only makes at -O3
+            std::vector<uint16_t> lone_variant;
             if (options_.use_transparency && any_same) {
                 transparent_variant.resize(count);
-                std::size_t begin_same = 0;
+                std::size_t begin_same = 0, copied_to = 0;
                 unsigned nsame = 0;
                 for (std::size_t p = 0; p < count; ++p) {
                     if (!same[p] && pixels[p] != kTransparent) {
+                        if (nsame == 1 && p > 0 && transparent_variant[p - 1] != kTransparent) {
+                            if (lone_variant.empty()) lone_variant.assign(count, kTransparent);
+                            std::copy(transparent_variant.begin() + static_cast<std::ptrdiff_t>(copied_to),
+                                      transparent_variant.begin() + static_cast<std::ptrdiff_t>(begin_same),
+                                      lone_variant.begin() + static_cast<std::ptrdiff_t>(copied_to));
+                            std::fill(lone_variant.begin() + static_cast<std::ptrdiff_t>(begin_same),
+                                      lone_variant.begin() + static_cast<std::ptrdiff_t>(p), kTransparent);
+                            copied_to = p;
+                        }
                         nsame = 0;
                     } else if (nsame == 0) {
                         begin_same = p;
@@ -284,7 +299,12 @@ private:
                     }
                     transparent_variant[p] = nsame > 1 ? kTransparent : pixels[p];
                 }
+                if (!lone_variant.empty())
+                    std::copy(transparent_variant.begin() + static_cast<std::ptrdiff_t>(copied_to),
+                              transparent_variant.end(),
+                              lone_variant.begin() + static_cast<std::ptrdiff_t>(copied_to));
                 if (transparent_variant == pixels) transparent_variant.clear();
+                if (lone_variant == pixels || lone_variant == transparent_variant) lone_variant.clear();
             }
 
             // the rule above can lose on frames that are mostly unchanged, so keep the
@@ -321,7 +341,8 @@ private:
             frame.block_sizes.clear();
             frame.local.reset();
             frame.transparent =
-                (wants_transparency || !transparent_variant.empty() || !greedy_variant.empty())
+                (wants_transparency || !transparent_variant.empty() || !greedy_variant.empty() ||
+                 !lone_variant.empty())
                     ? 0
                     : -1;  // index assigned later
             frame_needs_transparency_.push_back(wants_transparency ? 1 : 0);
@@ -339,6 +360,7 @@ private:
             new_pixels_.push_back(std::move(pixels));
             transparent_pixels_.push_back(std::move(transparent_variant));
             greedy_pixels_.push_back(std::move(greedy_variant));
+            lone_pixels_.push_back(std::move(lone_variant));
         }
         stream_.frames = std::move(out);
     }
@@ -359,6 +381,7 @@ private:
             new_pixels_.erase(new_pixels_.begin() + static_cast<std::ptrdiff_t>(i));
             transparent_pixels_.erase(transparent_pixels_.begin() + static_cast<std::ptrdiff_t>(i));
             greedy_pixels_.erase(greedy_pixels_.begin() + static_cast<std::ptrdiff_t>(i));
+            lone_pixels_.erase(lone_pixels_.begin() + static_cast<std::ptrdiff_t>(i));
             frame_needs_transparency_.erase(frame_needs_transparency_.begin() +
                                             static_cast<std::ptrdiff_t>(i));
             paints_nothing_.erase(paints_nothing_.begin() + static_cast<std::ptrdiff_t>(i));
@@ -402,8 +425,10 @@ private:
             to_index[id] = static_cast<uint8_t>(global.colors.size());
             global.colors.push_back(space_.colors[id]);
         }
-        const std::size_t palette_size = std::max<std::size_t>(global.colors.size(), 1);
-
+        // one spare slot serves every frame that needs it: no pixel ever maps to it, so
+        // it is free in all of them at once. growing the table per frame instead is what
+        // turned a 32 colour animation into a 256 entry palette, code size and all
+        int spare = -1;
         std::vector<int> transparent_index(new_pixels_.size(), -1);
         for (std::size_t i = 0; i < new_pixels_.size(); ++i) {
             if (stream_.frames[i].transparent < 0) continue;
@@ -411,13 +436,15 @@ private:
             for (uint16_t v : new_pixels_[i])
                 if (v != kTransparent) taken[to_index[v]] = 1;
             int free_index = -1;
-            for (std::size_t slot = 0; slot < palette_size && slot < 256; ++slot)
+            for (std::size_t slot = 0; slot < global.colors.size() && slot < 256; ++slot)
                 if (!taken[slot]) {
                     free_index = static_cast<int>(slot);
                     break;
                 }
-            if (free_index < 0 && palette_size < 256) {
-                free_index = static_cast<int>(palette_size);
+            if (free_index < 0 && spare >= 0) free_index = spare;
+            if (free_index < 0 && global.colors.size() < 256) {
+                spare = static_cast<int>(global.colors.size());
+                free_index = spare;
                 global.colors.push_back(Color{});
             }
             if (free_index < 0) {
@@ -490,6 +517,7 @@ private:
         convert(new_pixels_[i], plain_index_[i]);
         if (!transparent_pixels_[i].empty()) convert(transparent_pixels_[i], transparent_index_[i]);
         if (!greedy_pixels_[i].empty()) convert(greedy_pixels_[i], greedy_index_[i]);
+        if (!lone_pixels_[i].empty()) convert(lone_pixels_[i], lone_index_[i]);
     }
 
     // the encoder is the only honest judge of whether transparency paid off, which is
@@ -498,7 +526,8 @@ private:
         for (std::size_t i = 0; i < stream_.frames.size(); ++i) {
             Frame& f = stream_.frames[i];
             const unsigned palette = effective_palette_size(f, stream_);
-            if (transparent_index_[i].empty() && greedy_index_[i].empty()) {
+            if (transparent_index_[i].empty() && greedy_index_[i].empty() &&
+                lone_index_[i].empty()) {
                 f.pixels = std::move(plain_index_[i]);
                 f.pixels_complete = true;
                 continue;
@@ -507,7 +536,8 @@ private:
             std::size_t best_size =
                 encode_lzw(plain_index_[i], f.width, f.height, f.interlaced, palette).lzw.size();
             bool transparent_won = false;
-            for (std::vector<uint8_t>* candidate : {&transparent_index_[i], &greedy_index_[i]}) {
+            for (std::vector<uint8_t>* candidate :
+                 {&transparent_index_[i], &greedy_index_[i], &lone_index_[i]}) {
                 if (candidate->empty()) continue;
                 const std::size_t size =
                     encode_lzw(*candidate, f.width, f.height, f.interlaced, palette).lzw.size();
@@ -566,6 +596,8 @@ private:
     std::vector<std::vector<uint8_t>> transparent_index_;
     std::vector<std::vector<uint16_t>> greedy_pixels_;
     std::vector<std::vector<uint8_t>> greedy_index_;
+    std::vector<std::vector<uint16_t>> lone_pixels_;
+    std::vector<std::vector<uint8_t>> lone_index_;
     std::vector<uint8_t> frame_needs_transparency_;
     std::vector<uint8_t> paints_nothing_;
     std::vector<Disposal> disposal_;
@@ -576,6 +608,35 @@ private:
 
 OptimizeStats optimize(Stream& stream, const OptimizeOptions& options) {
     return Optimizer(stream, options).run();
+}
+
+std::size_t strip_metadata(Stream& stream) {
+    std::size_t removed = 0;
+    const auto keep = [&removed](std::vector<Extension>& list) {
+        std::vector<Extension> kept;
+        for (auto& ext : list) {
+            if (ext.label == 0xFF && ext.is_application("NETSCAPE2.0")) {
+                kept.push_back(std::move(ext));
+                continue;
+            }
+            if (ext.label != 0xFE && ext.label != 0x01 && ext.label != 0xFF) {
+                kept.push_back(std::move(ext));
+                continue;
+            }
+            removed += 3;  // introducer, label, terminator
+            for (const auto& block : ext.blocks) removed += block.size() + 1;
+        }
+        list = std::move(kept);
+    };
+    for (auto& frame : stream.frames) {
+        const std::size_t before = frame.extensions.size();
+        keep(frame.extensions);
+        if (frame.gce_position > frame.extensions.size())
+            frame.gce_position = frame.extensions.size();
+        (void)before;
+    }
+    keep(stream.trailing_extensions);
+    return removed;
 }
 
 OptimizeStats unoptimize(Stream& stream) {

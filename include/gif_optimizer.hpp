@@ -50,6 +50,11 @@ OptimizeStats optimize(Stream& stream, const OptimizeOptions& options = {});
 // somebody else optimized badly
 OptimizeStats unoptimize(Stream& stream);
 
+// drops comments, plain text blocks and application extensions, keeping the loop
+// block because it is animation, not metadata. returns how many bytes went away.
+// this is a policy, not an optimization: the pixels do not change either way.
+std::size_t strip_metadata(Stream& stream);
+
 }  // namespace gifout
 
 #endif  // GIFOUTCPP_GIF_OPTIMIZER_HPP
