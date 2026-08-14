@@ -290,6 +290,14 @@ private:
             note(Severity::Warning, offset, "frame with zero width or height");
             return true;
         }
+        if (options_.decode_pixels &&
+            static_cast<std::size_t>(frame.width) * frame.height > options_.max_frame_pixels) {
+            note(Severity::Warning, offset,
+                 "frame declares " + std::to_string(static_cast<std::size_t>(frame.width) *
+                                                    frame.height) +
+                     " pixels, over the budget, left undecoded");
+            return true;
+        }
         if (options_.decode_pixels) {
             auto decoded = decode_lzw(frame.lzw, frame.lzw_min_code_size, frame.width,
                                       frame.height, frame.interlaced, result_.diagnostics, offset);

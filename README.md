@@ -200,6 +200,12 @@ its own count, or the two disagree about when the code width grows and the strea
 desynchronises a few thousand pixels later. This cost two corrupt files before it
 was found, and the same latent bug was in the greedy encoder.
 
+**A declared size is not a promise.** A frame states its dimensions in four bytes, so
+a 35-byte file can ask the decoder for 4.3 G pixels; before this was bounded it
+really did allocate 2.4 GB. `ReadOptions::max_frame_pixels` (256 M by default) keeps
+such a frame compressed and undecoded, and says so in the diagnostics. The fuzzer
+found this, and fixing it also made the fuzzer 20 times faster.
+
 **A damaged frame is never re-encoded.** If the decoder had to repair a frame's LZW
 stream, its pixels no longer describe the same image the file carries, so the
 original bytes are copied through instead. Recompressing them would silently change

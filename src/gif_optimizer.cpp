@@ -100,6 +100,10 @@ private:
         if (options_.level == Lossless::Structure) return "structure level forbids restructuring";
         if (stream_.frames.empty()) return "no frames";
         if (stream_.screen_width == 0 || stream_.screen_height == 0) return "empty screen";
+        // the canvas is walked twice and held whole, so an absurd screen is refused
+        if (static_cast<std::size_t>(stream_.screen_width) * stream_.screen_height >
+            (std::size_t{1} << 28))
+            return "screen too large to re-render";
         for (const auto& f : stream_.frames) {
             if (!f.pixels_complete) return "a frame's lzw stream had to be repaired";
             if (f.pixels.size() != f.pixel_count()) return "a frame has no decoded pixels";

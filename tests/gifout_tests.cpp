@@ -193,6 +193,53 @@ void test_reader_survives_damage() {
     }
 }
 
+// a frame's size is four bytes of header, so an unbounded decode lets a tiny file
+// ask for gigabytes. the reader must keep it compressed instead.
+void test_declared_size_cannot_exhaust_memory() {
+    std::vector<uint8_t> gif{'G', 'I', 'F', '8', '9', 'a'};
+    auto put_word = [&gif](unsigned v) {
+        gif.push_back(static_cast<uint8_t>(v & 0xFF));
+        gif.push_back(static_cast<uint8_t>(v >> 8));
+    };
+    put_word(65535);
+    put_word(65535);
+    gif.insert(gif.end(), {0x80, 0, 0});
+    gif.insert(gif.end(), {0, 0, 0, 255, 255, 255});
+    gif.push_back(0x2C);
+    put_word(0);
+    put_word(0);
+    put_word(65535);
+    put_word(65535);
+    gif.push_back(0);
+    gif.insert(gif.end(), {2, 2, 0x44, 0x01, 0x00, 0x3B});
+
+    auto read = read_gif(gif);
+    check(read.ok, "the oversized file still parses");
+    check(read.stream.frames.size() == 1, "its frame is there");
+    if (!read.stream.frames.empty()) {
+        const auto& f = read.stream.frames[0];
+        check(f.pixels.empty(), "but its pixels were not allocated");
+        check(!f.pixels_complete, "and it is marked as not decoded");
+        check(!f.lzw.empty(), "while the compressed bytes are kept");
+    }
+    bool warned = false;
+    for (const auto& d : read.diagnostics)
+        if (d.message.find("over the budget") != std::string::npos) warned = true;
+    check(warned, "and the caller is told why");
+
+    // asking for it explicitly still works for a caller who knows what it is doing
+    ReadOptions generous;
+    generous.max_frame_pixels = 64;
+    auto small = read_gif(gif, generous);
+    check(small.ok, "the budget is a caller's choice");
+
+    Stream stream = read.stream;
+    stream.screen_width = 65535;
+    stream.screen_height = 65535;
+    const auto stats = optimize(stream);
+    check(!stats.skipped.empty(), "and the optimizer refuses such a screen");
+}
+
 // ----- optimizer -----
 
 std::vector<std::vector<Color>> render(const Stream& s) {
@@ -423,6 +470,7 @@ int main(int argc, char** argv) {
         {"unoptimize", test_unoptimize_expands_frames},
         {"level l1", test_level_l1_refuses_to_restructure},
         {"public api", test_public_api},
+        {"declared size cannot exhaust memory", test_declared_size_cannot_exhaust_memory},
     };
     for (const auto& [name, fn] : tests) {
         const int before = failures;

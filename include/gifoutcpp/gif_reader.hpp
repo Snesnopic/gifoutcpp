@@ -22,6 +22,9 @@ struct ReadOptions {
     bool decode_pixels = true;
     // cap on diagnostics so a corrupt file cannot flood the caller
     std::size_t max_diagnostics = 64;
+    // a frame declares its size in four bytes, so without a budget a 35 byte file can
+    // ask for gigabytes. frames past this are kept compressed and left undecoded.
+    std::size_t max_frame_pixels = std::size_t{1} << 28;
 };
 
 ReadResult read_gif(std::span<const uint8_t> data, const ReadOptions& options = {});
