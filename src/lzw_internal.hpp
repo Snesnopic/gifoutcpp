@@ -94,32 +94,34 @@ private:
     std::size_t bit_pos_ = 0;
 };
 
-// maps a linear encode position to a pixel, honouring the interlace pass order
+// the pixels in the order the encoder walks them. laying them out once costs one byte
+// per pixel and one pass; computing the mapping instead costs a division and a modulo
+// per pixel, inside the loop the whole project spends its time in
 class PixelOrder {
 public:
-    PixelOrder(std::span<const uint8_t> pixels, uint16_t width, uint16_t height, bool interlaced)
-        : pixels_(pixels), width_(width) {
-        rows_.reserve(height);
+    PixelOrder(std::span<const uint8_t> pixels, uint16_t width, uint16_t height, bool interlaced) {
+        const std::size_t count = std::min<std::size_t>(
+            pixels.size(), static_cast<std::size_t>(width) * height);
         if (!interlaced) {
-            for (uint16_t y = 0; y < height; ++y) rows_.push_back(y);
-        } else {
-            static constexpr std::array<uint16_t, 4> start{0, 4, 2, 1};
-            static constexpr std::array<uint16_t, 4> step{8, 8, 4, 2};
-            for (int pass = 0; pass < 4; ++pass)
-                for (uint16_t y = start[pass]; y < height; y = static_cast<uint16_t>(y + step[pass]))
-                    rows_.push_back(y);
+            ordered_.assign(pixels.begin(), pixels.begin() + static_cast<std::ptrdiff_t>(count));
+            return;
         }
+        ordered_.reserve(count);
+        static constexpr std::array<uint16_t, 4> start{0, 4, 2, 1};
+        static constexpr std::array<uint16_t, 4> step{8, 8, 4, 2};
+        for (int pass = 0; pass < 4; ++pass)
+            for (uint16_t y = start[pass]; y < height; y = static_cast<uint16_t>(y + step[pass])) {
+                const std::size_t row = static_cast<std::size_t>(y) * width;
+                for (uint16_t x = 0; x < width && row + x < count; ++x)
+                    ordered_.push_back(pixels[row + x]);
+            }
     }
 
-    [[nodiscard]] uint8_t at(std::size_t pos) const {
-        const std::size_t row = rows_[pos / width_];
-        return pixels_[row * width_ + pos % width_];
-    }
+    [[nodiscard]] uint8_t at(std::size_t pos) const { return ordered_[pos]; }
+    [[nodiscard]] std::size_t size() const { return ordered_.size(); }
 
 private:
-    std::span<const uint8_t> pixels_;
-    uint16_t width_;
-    std::vector<uint16_t> rows_;
+    std::vector<uint8_t> ordered_;
 };
 
 inline uint8_t min_code_bits_for(std::span<const uint8_t> pixels, unsigned palette_size, bool careful) {
