@@ -37,7 +37,11 @@ Early, but the whole pipeline is in place: read, restructure, search the LZW
 restart points, write.
 
 What is verified today, on a corpus of 51 real GIFs from Wikimedia Commons
-(31.6 MB, 136.5 M pixels, 1 to 475 frames):
+(31.6 MB, 136.5 M pixels, 1 to 475 frames). The corpus is pinned by name, size and
+SHA-256 in `bench/corpus.manifest.json`; `bench/fetch_corpus.py` downloads exactly
+that and refuses anything whose checksum moved, and `bench/report.py` re-derives the
+table below and checks every output with `gifdiff`. Sizes are deterministic;
+timings were taken on an otherwise idle M2 Pro and mean nothing on a loaded machine:
 
 * **Decoder agrees with gifsicle on 51/51 files** — frame geometry, delays,
   disposal, transparency, local colormap sizes and every decoded pixel index
