@@ -33,7 +33,8 @@ implicit default.
 
 ## Status
 
-Early. The core reads and writes GIFs; the optimizers are not written yet.
+Early. The core reads, re-encodes and writes GIFs; the structural optimizer and the
+optimal LZW search are not written yet.
 
 What is verified today, on a corpus of 51 real GIFs from Wikimedia Commons
 (31.6 MB, 136.5 M pixels, 1 to 475 frames):
@@ -45,6 +46,12 @@ What is verified today, on a corpus of 51 real GIFs from Wikimedia Commons
   a file carrying 3086 bytes of zero padding after the GIF trailer, which is
   dropped on purpose; gifsicle drops it too.
 * **All 51 round-trip outputs are L1-equivalent** to their input.
+* **The greedy encoder reproduces gifsicle's LZW output byte for byte on 51/51
+  files** (`bench/encode_check`), so the ported run-length heuristic is exact.
+* Recompressing the corpus gives **−2.62 %** at ~80 Mpixel/s end to end, with all
+  51 outputs L1-equivalent and `gifdiff`-identical. That matches what gifsicle's
+  own encoder achieves, which is the point: it is the baseline the optimal LZW
+  search has to beat.
 
 For reference, the reader accepts the whole corpus, including the four files
 flexiGIF's parser rejects outright.
@@ -73,12 +80,19 @@ cmake -S . -B build -DGIFOUT_BUILD_BENCH=ON -DCHISEL_ROOT=../chisel
 ```
 gifoutcpp [options] <input.gif> [output.gif]
 
-  -i, --info      report structure and diagnostics, write nothing
-      --reblock   re-chunk lzw data at 255 bytes instead of keeping the source split
-  -q, --quiet     only report errors
-  -h, --help      this message
-  -v, --version   version number
+  -i, --info        report structure and diagnostics, write nothing
+  -c, --copy        copy the lzw data instead of re-encoding it
+      --careful     take the code size from the palette, not from the pixels
+      --eager-clear restart the dictionary as soon as it fills
+      --both-clears try both restart policies and keep the smaller
+      --reblock     re-chunk copied lzw data at 255 bytes
+  -q, --quiet       only report errors
+  -h, --help        this message
+  -v, --version     version number
 ```
+
+`--both-clears` is what gifsicle only turns on at `-O3`. Measured over the corpus it
+buys 0.004 % for 1.5x the time, so it is an option rather than the default.
 
 ## Design notes
 
@@ -93,6 +107,11 @@ bits that carry no meaning (a transparent index stored with the transparency fla
 off). None of it matters once the file is re-encoded, but preserving it makes an
 untouched round trip provably a no-op, which is the strongest available test of
 reader and writer.
+
+**A damaged frame is never re-encoded.** If the decoder had to repair a frame's LZW
+stream, its pixels no longer describe the same image the file carries, so the
+original bytes are copied through instead. Recompressing them would silently change
+the picture.
 
 **No mutable global state**, so the library can be used from several threads. When
 parallelism arrives it will be optional, with single-threaded output identical bit

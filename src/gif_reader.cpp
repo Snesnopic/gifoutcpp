@@ -294,6 +294,7 @@ private:
             auto decoded = decode_lzw(frame.lzw, frame.lzw_min_code_size, frame.width,
                                       frame.height, frame.interlaced, result_.diagnostics, offset);
             frame.pixels = std::move(decoded.pixels);
+            frame.pixels_complete = decoded.complete;
         }
         return true;
     }

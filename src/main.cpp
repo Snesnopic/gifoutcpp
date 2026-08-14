@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 
+#include "gif_encoder.hpp"
 #include "gif_reader.hpp"
 #include "gif_writer.hpp"
 
@@ -18,11 +19,15 @@ void usage() {
         "\n"
         "usage: gifoutcpp [options] <input.gif> [output.gif]\n"
         "\n"
-        "  -i, --info      report structure and diagnostics, write nothing\n"
-        "      --reblock   re-chunk lzw data at 255 bytes instead of keeping the source split\n"
-        "  -q, --quiet     only report errors\n"
-        "  -h, --help      this message\n"
-        "  -v, --version   version number\n",
+        "  -i, --info        report structure and diagnostics, write nothing\n"
+        "  -c, --copy        copy the lzw data instead of re-encoding it\n"
+        "      --careful     take the code size from the palette, not from the pixels\n"
+        "      --eager-clear restart the dictionary as soon as it fills\n"
+        "      --both-clears try both restart policies and keep the smaller\n"
+        "      --reblock     re-chunk copied lzw data at 255 bytes\n"
+        "  -q, --quiet       only report errors\n"
+        "  -h, --help        this message\n"
+        "  -v, --version     version number\n",
         GIFOUTCPP_VERSION);
 }
 
@@ -58,8 +63,9 @@ void print_info(const gifout::Stream& s) {
 }  // namespace
 
 int main(int argc, char** argv) {
-    bool info = false, quiet = false;
+    bool info = false, quiet = false, copy = false;
     gifout::WriteOptions write_options;
+    gifout::EncodeOptions encode_options;
     std::vector<std::string> positional;
 
     for (int i = 1; i < argc; ++i) {
@@ -72,6 +78,14 @@ int main(int argc, char** argv) {
             return 0;
         } else if (arg == "-i" || arg == "--info") {
             info = true;
+        } else if (arg == "-c" || arg == "--copy") {
+            copy = true;
+        } else if (arg == "--careful") {
+            encode_options.careful_min_code_size = true;
+        } else if (arg == "--eager-clear") {
+            encode_options.eager_clear = true;
+        } else if (arg == "--both-clears") {
+            encode_options.try_both_clear_policies = true;
         } else if (arg == "--reblock") {
             write_options.reblock_lzw = true;
         } else if (arg == "-q" || arg == "--quiet") {
@@ -91,7 +105,7 @@ int main(int argc, char** argv) {
 
     const std::string& input = positional[0];
     gifout::ReadOptions read_options;
-    read_options.decode_pixels = info;
+    read_options.decode_pixels = info || !copy;
     auto result = gifout::read_gif_file(input, read_options);
     if (!quiet || result.has_errors()) print_diagnostics(result, input);
     if (!result.ok) {
@@ -107,6 +121,22 @@ int main(int argc, char** argv) {
         std::fprintf(stderr, "no output file given\n");
         return 2;
     }
+
+    if (!copy) {
+        for (auto& frame : result.stream.frames) {
+            // a frame the decoder had to repair no longer matches its own lzw data, so
+            // re-encoding it would change the image rather than just its encoding
+            if (!frame.pixels_complete) {
+                if (!quiet)
+                    std::fprintf(stderr, "%s: frame with a damaged lzw stream copied verbatim\n",
+                                 input.c_str());
+                continue;
+            }
+            gifout::encode_frame(frame, gifout::effective_palette_size(frame, result.stream),
+                                 encode_options);
+        }
+    }
+
     if (!gifout::write_gif_file(result.stream, positional[1], write_options)) {
         std::fprintf(stderr, "%s: cannot write\n", positional[1].c_str());
         return 1;

@@ -62,6 +62,7 @@ struct Frame {
     std::vector<uint8_t> lzw;          // sub-block payloads concatenated
     std::vector<uint8_t> block_sizes;  // original split, empty = free to re-block
     std::vector<uint8_t> pixels;       // width*height indices, natural row order
+    bool pixels_complete = false;      // false when the decoder had to repair the stream
 
     [[nodiscard]] std::size_t pixel_count() const noexcept {
         return static_cast<std::size_t>(width) * height;

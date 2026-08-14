@@ -49,7 +49,7 @@ jobs:
         run: |
           fail=0
           for f in /tmp/fx/*.gif; do
-            ./build/gifoutcpp -q "$f" "/tmp/out.gif" || { echo "FAIL read/write $f"; fail=1; continue; }
+            ./build/gifoutcpp -q --copy "$f" "/tmp/out.gif" || { echo "FAIL read/write $f"; fail=1; continue; }
             if cmp -s "$f" /tmp/out.gif; then
               echo "ok  $(basename "$f")"
             else
@@ -65,9 +65,24 @@ jobs:
         run: |
           fail=0
           for f in /tmp/fx/*.gif; do
-            ./build/gifoutcpp -q --reblock "$f" "/tmp/out.gif" || { echo "FAIL $f"; fail=1; continue; }
+            ./build/gifoutcpp -q --copy --reblock "$f" "/tmp/out.gif" || { echo "FAIL $f"; fail=1; continue; }
             if gifdiff "$f" /tmp/out.gif; then
               echo "ok  $(basename "$f")"
+            else
+              echo "FAIL renders differently: $(basename "$f")"
+              fail=1
+            fi
+          done
+          exit $fail
+
+      # the greedy encoder rewrites every lzw stream, so only the image may survive
+      - name: Recompressed output renders identically
+        run: |
+          fail=0
+          for f in /tmp/fx/*.gif; do
+            ./build/gifoutcpp -q "$f" "/tmp/out.gif" || { echo "FAIL $f"; fail=1; continue; }
+            if gifdiff "$f" /tmp/out.gif; then
+              echo "ok  $(basename "$f") $(stat -c%s "$f") -> $(stat -c%s /tmp/out.gif)"
             else
               echo "FAIL renders differently: $(basename "$f")"
               fail=1
