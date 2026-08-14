@@ -63,8 +63,10 @@ timings were taken on an otherwise idle M2 Pro and mean nothing on a loaded mach
 * `-O -s` together give **−12.03 % in 16 s** on that subset, against **−11.43 %**
   for gifsicle piped into flexiGIF, which spends about 737 s in flexiGIF alone.
 * On the **whole** corpus, which the established pipeline cannot finish at all,
-  `-O -s --strip` gives **−11.68 %** in **1.08 minutes on ten threads**,
-  byte-identical whatever the thread count, all 51 rendering-identical.
+  `-O -s --strip` gives **−11.87 %** in under two minutes on ten threads,
+  byte-identical whatever the thread count, all 51 rendering-identical. Halving
+  `--alignment` to 80 reaches −11.97 % for 1.9x the work: the search cost is linear
+  in the inverse of the alignment, and the returns fall off fast.
 * With `-O --strip` the corpus goes to **−8.22 %**, against **−8.04 %** for
   `gifsicle -O3`. Dropping interlacing is worth 48 730 B of that: it wins on 7 files
   (up to −9.4 %) and loses on none, so it is the default and `--keep-interlace` turns
