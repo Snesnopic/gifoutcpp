@@ -37,3 +37,6 @@ target_link_libraries(encode_check PRIVATE gifout_core libgifsicle)
 # throwaway experiment: how much does greedy lzw parsing leave on the table
 add_executable(parse_probe parse_probe.cpp)
 target_link_libraries(parse_probe PRIVATE gifout_core)
+
+add_executable(beam_probe beam_probe.cpp)
+target_link_libraries(beam_probe PRIVATE gifout_core)
