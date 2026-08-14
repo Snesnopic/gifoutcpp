@@ -385,37 +385,64 @@ private:
             seen[background_id_] = 1;
             used.push_back(background_id_);
         }
-        const std::size_t slots_needed = used.size() + (any_transparent ? 1 : 0);
+        // the transparent index does not need a slot of its own: it only has to be an
+        // index the frame never paints with, and a frame rarely uses the whole table.
+        // reserving one instead costs a palette that overflows by exactly one entry.
         stats_.colors_after = used.size();
         stats_.transparency_used = any_transparent;
 
-        if (slots_needed <= 256) {
-            build_shared_palette(used, any_transparent);
-        } else {
-            build_local_palettes();
-        }
+        if (used.size() <= 256 && build_shared_palette(used)) return;
+        build_local_palettes();
     }
 
-    void build_shared_palette(const std::vector<uint16_t>& used, bool any_transparent) {
+    bool build_shared_palette(const std::vector<uint16_t>& used) {
         Colormap global;
         std::vector<uint8_t> to_index(space_.colors.size(), 0);
-        unsigned next = 0;
-        if (any_transparent) {
-            global.colors.push_back(Color{});  // slot reserved for transparency
-            next = 1;
-        }
         for (uint16_t id : used) {
-            to_index[id] = static_cast<uint8_t>(next);
+            to_index[id] = static_cast<uint8_t>(global.colors.size());
             global.colors.push_back(space_.colors[id]);
-            ++next;
         }
+        const std::size_t palette_size = std::max<std::size_t>(global.colors.size(), 1);
+
+        std::vector<int> transparent_index(new_pixels_.size(), -1);
+        for (std::size_t i = 0; i < new_pixels_.size(); ++i) {
+            if (stream_.frames[i].transparent < 0) continue;
+            std::vector<uint8_t> taken(256, 0);
+            for (uint16_t v : new_pixels_[i])
+                if (v != kTransparent) taken[to_index[v]] = 1;
+            int free_index = -1;
+            for (std::size_t slot = 0; slot < palette_size && slot < 256; ++slot)
+                if (!taken[slot]) {
+                    free_index = static_cast<int>(slot);
+                    break;
+                }
+            if (free_index < 0 && palette_size < 256) {
+                free_index = static_cast<int>(palette_size);
+                global.colors.push_back(Color{});
+            }
+            if (free_index < 0) {
+                // this frame paints with every index there is and still needs to show
+                // something through: only its own palette can help
+                if (frame_needs_transparency_[i]) return false;
+                stream_.frames[i].transparent = -1;
+                transparent_pixels_[i].clear();
+                greedy_pixels_[i].clear();
+                continue;
+            }
+            transparent_index[i] = free_index;
+        }
+
         stream_.global = std::move(global);
-        stream_.background = background_id_ == kTransparent ? 0 : to_index[background_id_];
+        stream_.background =
+            background_id_ == kTransparent ? 0 : to_index[background_id_];
 
         for (std::size_t i = 0; i < new_pixels_.size(); ++i) {
             stream_.frames[i].local.reset();
-            map_variants(i, [&](uint16_t v) { return to_index[v]; });
+            const auto slot = static_cast<uint8_t>(std::max(0, transparent_index[i]));
+            map_variants(i, slot, [&](uint16_t v) { return to_index[v]; });
+            if (transparent_index[i] >= 0) stream_.frames[i].transparent = transparent_index[i];
         }
+        return true;
     }
 
     void build_local_palettes() {
@@ -432,7 +459,7 @@ private:
             Colormap map;
             if (f.transparent >= 0) map.colors.push_back(Color{});
             bool overflow = false;
-            map_variants(i, [&](uint16_t v) -> uint8_t {
+            map_variants(i, 0, [&](uint16_t v) -> uint8_t {
                 auto it = index_of.find(v);
                 if (it == index_of.end()) {
                     if (map.colors.size() >= 256) {
@@ -454,11 +481,11 @@ private:
     }
 
     template <typename Map>
-    void map_variants(std::size_t i, Map to_index) {
+    void map_variants(std::size_t i, uint8_t transparent_slot, Map to_index) {
         auto convert = [&](const std::vector<uint16_t>& src, std::vector<uint8_t>& dst) {
             dst.resize(src.size());
             for (std::size_t p = 0; p < src.size(); ++p)
-                dst[p] = src[p] == kTransparent ? 0 : to_index(src[p]);
+                dst[p] = src[p] == kTransparent ? transparent_slot : to_index(src[p]);
         };
         convert(new_pixels_[i], plain_index_[i]);
         if (!transparent_pixels_[i].empty()) convert(transparent_pixels_[i], transparent_index_[i]);

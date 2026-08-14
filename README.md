@@ -133,6 +133,12 @@ reader and writer.
 **`-O` can never make a file larger.** Restructuring loses on some inputs, so the
 plain recompression is computed as well and the smaller of the two is written.
 
+**The transparent index is per frame, not a reserved slot.** It only has to be an
+index that frame never paints with, and a frame rarely uses the whole table. Setting
+one aside globally instead is what makes a 256-colour animation overflow by exactly
+one entry and fall back to a local palette per frame, which on one 44-frame file cost
+33 KB on its own.
+
 **The background is transparent only if the first frame says so.** A GIF shows its
 background colour under uncovered area only when the first frame declares no
 transparent index; otherwise that area is transparent. Cropping a frame can expose
