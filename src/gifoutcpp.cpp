@@ -201,9 +201,6 @@ Result recompress_file(const std::filesystem::path& input, const std::filesystem
     return result;
 }
 
-std::string version() {
-    return std::to_string(GIFOUTCPP_VERSION_MAJOR) + "." + std::to_string(GIFOUTCPP_VERSION_MINOR) +
-           "." + std::to_string(GIFOUTCPP_VERSION_PATCH);
-}
+std::string version() { return GIFOUTCPP_VERSION; }
 
 }  // namespace gifout

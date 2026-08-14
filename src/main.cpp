@@ -6,10 +6,6 @@
 
 #include "gifoutcpp/gifoutcpp.hpp"
 
-#ifndef GIFOUTCPP_VERSION
-#define GIFOUTCPP_VERSION "0.0.0"
-#endif
-
 namespace {
 
 void usage() {

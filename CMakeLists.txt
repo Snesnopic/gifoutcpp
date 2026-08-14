@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(gifoutcpp VERSION 0.2.0 LANGUAGES C CXX)
+project(gifoutcpp VERSION 0.8.0 LANGUAGES C CXX)
 
 if(MSVC)
     # force static msvc runtime linkage (/mt for release, /mtd for debug)
@@ -43,6 +43,9 @@ target_include_directories(gifout_core PUBLIC
 set_target_properties(gifout_core PROPERTIES VERSION ${PROJECT_VERSION} EXPORT_NAME core)
 add_library(gifoutcpp::core ALIAS gifout_core)
 target_link_libraries(gifout_core PUBLIC Threads::Threads)
+# the version is written down once, in the project() call above, and reaches the code
+# as a define on the targets that need it
+target_compile_definitions(gifout_core PRIVATE GIFOUTCPP_VERSION="${PROJECT_VERSION}")
 
 # cli: a thin consumer of the core, mirroring how chisel would use it
 add_executable(gifoutcpp src/main.cpp)

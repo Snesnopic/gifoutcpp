@@ -23,13 +23,6 @@
 #include "gifoutcpp/gif_types.hpp"
 #include "gifoutcpp/gif_writer.hpp"
 
-/** @brief Major version; changes when the API breaks. */
-#define GIFOUTCPP_VERSION_MAJOR 0
-/** @brief Minor version; changes when the API grows. */
-#define GIFOUTCPP_VERSION_MINOR 3
-/** @brief Patch version. */
-#define GIFOUTCPP_VERSION_PATCH 0
-
 namespace gifout {
 
 /** @brief What to do to the file, in the order the pipeline applies it. */
@@ -113,7 +106,9 @@ Result recompress_file(const std::filesystem::path& input, const std::filesystem
 Result recompress_stream(Stream& stream, std::vector<uint8_t>& output,
                          const Options& options = {});
 
-/** @return The library version, as "major.minor.patch". */
+/**
+ * @return The library version, as "major.minor.patch", from the build that produced it.
+ */
 [[nodiscard]] std::string version();
 
 }  // namespace gifout
