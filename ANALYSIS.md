@@ -221,10 +221,20 @@ Vincoli di progetto che emergono dallo studio:
 
 ## 5. Cosa resta aperto
 
-* ~~Il DP dopo `gifsicle -O3` sulle animazioni vere~~ — **chiuso**, vedi §1bis.
-* Il pruning dimostrabilmente sicuro dello scan in avanti resta non risolto (il
-  bound naïve non regge: i due termini si muovono alla stessa velocità).
-* Il de-interlacciamento è L2 ma cambia il caricamento progressivo su rete lenta:
-  va sotto un flag proprio, non dentro `gifsicle -O3`.
+* Il pruning dello scan in avanti c'è ma nella forma debole e dimostrabile (i bit
+  accumulati non calano, le code costano ≥ 0): vale circa il 7 %. Un bound più
+  stretto richiede un limite inferiore sui bit per byte della coda, e resta un
+  problema aperto.
+* Il modello a penalità di gifsicle per la colormap globale non è portato. Dopo
+  aver chiuso i due bug che sembravano dipenderne (uno slot spare condiviso invece
+  di uno per frame, e l'indice trasparente scelto per frame), il divario su `-O` è
+  passato da +0,190 % a +0,041 %, e con `--strip` a −0,020 %: siamo davanti a
+  gifsicle. Quello che resta è quasi tutto su `l02`, dove a geometria identica il
+  nostro LZW è più grande di 10 KB su 1,6 MB.
+* `--deinterlace` è L2 ma cambia il caricamento progressivo su rete lenta: sta
+  sotto un flag proprio, non dentro `-O`.
 * Non è ancora misurato quanto valga il `--careful` di gifsicle (compatibilità con
   decoder difettosi) in termini di byte.
+* Il DP sulle animazioni grandi resta O(n²/alignment): il parallelismo lo ha reso
+  praticabile (corpus intero in ~1 minuto su dieci core) ma non lo ha reso più
+  economico in lavoro totale.

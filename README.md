@@ -59,8 +59,8 @@ What is verified today, on a corpus of 51 real GIFs from Wikimedia Commons
 * `-O -s` together give **−12.03 % in 16 s** on that subset, against **−11.43 %**
   for gifsicle piped into flexiGIF, which spends about 737 s in flexiGIF alone.
 * On the **whole** corpus, which the established pipeline cannot finish at all,
-  `-O -s` gives **−11.57 %** in **1.05 minutes on ten threads** (5.8 on one),
-  byte-identical output either way, all 51 rendering-identical.
+  `-O -s --strip` gives **−11.68 %** in **1.08 minutes on ten threads**,
+  byte-identical whatever the thread count, all 51 rendering-identical.
 * With `-O` the corpus goes to **−8.00 % in 7.1 s**, against **−8.04 % in 4.8 s** for
   `gifsicle -O3`; adding `--strip` reaches **−8.06 %**, slightly ahead of it.
   **All 51 outputs are rendering-identical** (`gifdiff -w`), and 360 mutated
