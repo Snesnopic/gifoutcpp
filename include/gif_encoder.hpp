@@ -25,6 +25,8 @@ struct EncodeResult {
     std::vector<uint8_t> lzw;
     uint8_t min_code_size = 0;
     bool cleared = false;  // true when a dictionary restart was emitted
+
+    [[nodiscard]] std::size_t encoded_size() const { return lzw.size(); }
 };
 
 // pixels are in natural row order; interlaced tells the encoder to visit them in

@@ -25,6 +25,7 @@ option(GIFOUT_BUILD_BENCH "Build the research harness that links gifsicle and fl
 # core: everything a library consumer needs, no i/o policy and no cli
 add_library(gifout_core
     src/gif_lzw.cpp
+    src/gif_lzw_search.cpp
     src/gif_encoder.cpp
     src/gif_optimizer.cpp
     src/gif_reader.cpp

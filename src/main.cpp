@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "gif_encoder.hpp"
+#include "gif_lzw_search.hpp"
 #include "gif_optimizer.hpp"
 #include "gif_reader.hpp"
 #include "gif_writer.hpp"
@@ -21,6 +22,9 @@ void usage() {
         "usage: gifoutcpp [options] <input.gif> [output.gif]\n"
         "\n"
         "  -O, --optimize    rebuild frames and palettes, keeping only the rendered result\n"
+        "  -s, --search      search for the best dictionary restart points, much slower\n"
+        "      --alignment N how far apart restart points may sit, in pixels (default 160)\n"
+        "      --max-tokens N how far a block is explored (default 10000)\n"
         "      --deinterlace drop interlacing, which costs size and only helps slow links\n"
         "  -i, --info        report structure and diagnostics, write nothing\n"
         "  -c, --copy        copy the lzw data instead of re-encoding it\n"
@@ -70,6 +74,8 @@ int main(int argc, char** argv) {
     gifout::OptimizeOptions optimize_options;
     gifout::WriteOptions write_options;
     gifout::EncodeOptions encode_options;
+    gifout::SearchOptions search_options;
+    bool search = false;
     std::vector<std::string> positional;
 
     for (int i = 1; i < argc; ++i) {
@@ -89,6 +95,12 @@ int main(int argc, char** argv) {
             optimize_options.deinterlace = true;
         } else if (arg == "-c" || arg == "--copy") {
             copy = true;
+        } else if (arg == "-s" || arg == "--search") {
+            search = true;
+        } else if (arg == "--alignment" && i + 1 < argc) {
+            search_options.alignment = static_cast<unsigned>(std::stoul(argv[++i]));
+        } else if (arg == "--max-tokens" && i + 1 < argc) {
+            search_options.max_tokens = static_cast<unsigned>(std::stoul(argv[++i]));
         } else if (arg == "--careful") {
             encode_options.careful_min_code_size = true;
         } else if (arg == "--eager-clear") {
@@ -167,8 +179,23 @@ int main(int argc, char** argv) {
                                  input.c_str());
                 continue;
             }
-            gifout::encode_frame(frame, gifout::effective_palette_size(frame, result.stream),
-                                 encode_options);
+            const unsigned palette = gifout::effective_palette_size(frame, result.stream);
+            if (search) {
+                auto found = gifout::encode_lzw_search(frame.pixels, frame.width, frame.height,
+                                                       frame.interlaced, palette, encode_options,
+                                                       search_options);
+                auto greedy = gifout::encode_lzw(frame.pixels, frame.width, frame.height,
+                                                 frame.interlaced, palette, encode_options);
+                // the search should win, but a heuristic occasionally lands better
+                if (found.searched && found.encoded.lzw.size() < greedy.encoded_size())
+                    frame.lzw = std::move(found.encoded.lzw);
+                else
+                    frame.lzw = std::move(greedy.lzw);
+                frame.lzw_min_code_size = greedy.min_code_size;
+                frame.block_sizes.clear();
+            } else {
+                gifout::encode_frame(frame, palette, encode_options);
+            }
         }
     }
 

@@ -33,8 +33,8 @@ implicit default.
 
 ## Status
 
-Early. The core reads, restructures, re-encodes and writes GIFs; the optimal LZW
-search is not written yet.
+Early, but the whole pipeline is in place: read, restructure, search the LZW
+restart points, write.
 
 What is verified today, on a corpus of 51 real GIFs from Wikimedia Commons
 (31.6 MB, 136.5 M pixels, 1 to 475 frames):
@@ -52,6 +52,12 @@ What is verified today, on a corpus of 51 real GIFs from Wikimedia Commons
   51 outputs L1-equivalent and `gifdiff`-identical. That matches what gifsicle's
   own encoder achieves, which is the point: it is the baseline the optimal LZW
   search has to beat.
+* `-s` searches the dictionary restart points instead of guessing them. On the
+  29-file subset the established tools can finish, it gives **−11.29 %** against
+  **−8.75 %** for the greedy encoder, is **never larger than flexiGIF at the same
+  alignment** and smaller on 9 of them, at **1.8x** its speed.
+* `-O -s` together give **−12.03 % in 16 s** on that subset, against **−11.43 %**
+  for gifsicle piped into flexiGIF, which spends about 737 s in flexiGIF alone.
 * With `-O` the corpus goes to **−7.87 % in 6.4 s**, against **−8.04 % in 4.8 s**
   for `gifsicle -O3`: 0.19 % behind, smaller on 5 files, identical on 20.
   **All 51 outputs are rendering-identical** (`gifdiff -w`), and 360 mutated
@@ -85,6 +91,9 @@ cmake -S . -B build -DGIFOUT_BUILD_BENCH=ON -DCHISEL_ROOT=../chisel
 gifoutcpp [options] <input.gif> [output.gif]
 
   -O, --optimize    rebuild frames and palettes, keeping only the rendered result
+  -s, --search      search for the best dictionary restart points, much slower
+      --alignment N how far apart restart points may sit, in pixels (default 160)
+      --max-tokens N how far a block is explored (default 10000)
       --deinterlace drop interlacing, which costs size and only helps slow links
   -i, --info        report structure and diagnostics, write nothing
   -c, --copy        copy the lzw data instead of re-encoding it
@@ -96,6 +105,10 @@ gifoutcpp [options] <input.gif> [output.gif]
   -h, --help        this message
   -v, --version     version number
 ```
+
+`--alignment` is the knob that matters for `-s`: the cost is linear in its inverse,
+and 10 rather than 160 costs 15 to 33 times the time for 0.15 % of size. That is why
+the default is 160 and not flexiGIF's 10.
 
 `--both-clears` is what gifsicle only turns on at `gifsicle -O3`. Measured over the corpus it
 buys 0.004 % for 1.5x the time, so it is an option rather than the default.
@@ -123,6 +136,13 @@ transparent index; otherwise that area is transparent. Cropping a frame can expo
 area that was covered before, so the emitted stream has to keep the declaration even
 when no pixel uses it. It is carried on an index the frame never uses, which costs
 nothing; only when every index is taken does the palette grow by one entry.
+
+**The search and the decoder count codes the same way.** A decoder defines a
+dictionary entry for every code it receives, including the last one of a block. An
+encoder that ends a block mid-match has nothing to insert, but it must still advance
+its own count, or the two disagree about when the code width grows and the stream
+desynchronises a few thousand pixels later. This cost two corrupt files before it
+was found, and the same latent bug was in the greedy encoder.
 
 **A damaged frame is never re-encoded.** If the decoder had to repair a frame's LZW
 stream, its pixels no longer describe the same image the file carries, so the
