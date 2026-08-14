@@ -404,17 +404,47 @@ private:
         std::vector<uint16_t> used;
         used.reserve(space_.colors.size());
         std::vector<uint8_t> seen(space_.colors.size(), 0);
+        // the code size a frame pays follows its highest index, so the frames with the
+        // fewest colours are served first: they are the ones a low index can rescue
+        // what a frame is likely to end up painting, which is the transparent variant
+        // when it has one: ordering on the full image would rank by colours the frame
+        // is about to throw away
+        std::vector<std::vector<uint16_t>> palette_of(new_pixels_.size());
+        std::vector<std::vector<uint16_t>> rest_of(new_pixels_.size());
         bool any_transparent = false;
         for (std::size_t i = 0; i < new_pixels_.size(); ++i) {
             if (stream_.frames[i].transparent >= 0) any_transparent = true;
-            for (uint16_t v : new_pixels_[i]) {
-                if (v == kTransparent) continue;
+            const auto& mask = transparent_masks_[i];
+            std::vector<uint8_t> here(space_.colors.size(), 0);
+            for (std::size_t p = 0; p < new_pixels_[i].size(); ++p) {
+                const uint16_t v = new_pixels_[i][p];
+                if (v == kTransparent || here[v]) continue;
+                here[v] = 1;
+                if (!mask.empty() && mask[p])
+                    rest_of[i].push_back(v);
+                else
+                    palette_of[i].push_back(v);
+            }
+        }
+        std::vector<std::size_t> order(new_pixels_.size());
+        for (std::size_t i = 0; i < order.size(); ++i) order[i] = i;
+        std::stable_sort(order.begin(), order.end(), [&](std::size_t a, std::size_t b) {
+            return palette_of[a].size() < palette_of[b].size();
+        });
+        for (const std::size_t i : order)
+            for (const uint16_t v : palette_of[i])
                 if (!seen[v]) {
                     seen[v] = 1;
                     used.push_back(v);
                 }
-            }
-        }
+        // whatever only the full variants need goes after, since a frame that keeps them
+        // is paying for the whole picture anyway
+        for (const std::size_t i : order)
+            for (const uint16_t v : rest_of[i])
+                if (!seen[v]) {
+                    seen[v] = 1;
+                    used.push_back(v);
+                }
         if (background_id_ != kTransparent && !seen[background_id_]) {
             seen[background_id_] = 1;
             used.push_back(background_id_);
