@@ -40,6 +40,14 @@ target_compile_definitions(gifoutcpp PRIVATE GIFOUTCPP_VERSION="${PROJECT_VERSIO
 
 install(TARGETS gifoutcpp DESTINATION bin)
 
+option(GIFOUT_BUILD_TESTS "Build the test binary" ON)
+if(GIFOUT_BUILD_TESTS)
+    enable_testing()
+    add_executable(gifout_tests tests/gifout_tests.cpp)
+    target_link_libraries(gifout_tests PRIVATE gifout_core)
+    add_test(NAME gifout_tests COMMAND gifout_tests)
+endif()
+
 if(GIFOUT_BUILD_BENCH)
     add_subdirectory(bench)
 endif()

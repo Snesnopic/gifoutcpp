@@ -22,9 +22,14 @@ void usage() {
         "usage: gifoutcpp [options] <input.gif> [output.gif]\n"
         "\n"
         "  -O, --optimize    rebuild frames and palettes, keeping only the rendered result\n"
+        "  -u, --unoptimize  expand every frame back to full screen, disposal applied\n"
+        "      --level L     l1 keeps the structure and only re-encodes, l2 (default) may\n"
+        "                    rebuild it as long as the animation plays the same\n"
         "  -s, --search      search for the best dictionary restart points, much slower\n"
         "      --alignment N how far apart restart points may sit, in pixels (default 160)\n"
         "      --max-tokens N how far a block is explored (default 10000)\n"
+        "  -j, --threads N   threads for the search, 0 means as many as the machine has\n"
+        "                    (default 1; the output is identical whatever you pick)\n"
         "      --deinterlace drop interlacing, which costs size and only helps slow links\n"
         "  -i, --info        report structure and diagnostics, write nothing\n"
         "  -c, --copy        copy the lzw data instead of re-encoding it\n"
@@ -75,7 +80,7 @@ int main(int argc, char** argv) {
     gifout::WriteOptions write_options;
     gifout::EncodeOptions encode_options;
     gifout::SearchOptions search_options;
-    bool search = false;
+    bool search = false, unoptimize = false;
     std::vector<std::string> positional;
 
     for (int i = 1; i < argc; ++i) {
@@ -95,10 +100,24 @@ int main(int argc, char** argv) {
             optimize_options.deinterlace = true;
         } else if (arg == "-c" || arg == "--copy") {
             copy = true;
+        } else if (arg == "-u" || arg == "--unoptimize") {
+            unoptimize = true;
+        } else if (arg == "--level" && i + 1 < argc) {
+            const std::string level = argv[++i];
+            if (level == "l1" || level == "L1" || level == "structure") {
+                optimize_options.level = gifout::Lossless::Structure;
+            } else if (level == "l2" || level == "L2" || level == "rendering") {
+                optimize_options.level = gifout::Lossless::Rendering;
+            } else {
+                std::fprintf(stderr, "unknown level %s, expected l1 or l2\n", level.c_str());
+                return 2;
+            }
         } else if (arg == "-s" || arg == "--search") {
             search = true;
         } else if (arg == "--alignment" && i + 1 < argc) {
             search_options.alignment = static_cast<unsigned>(std::stoul(argv[++i]));
+        } else if ((arg == "-j" || arg == "--threads") && i + 1 < argc) {
+            search_options.threads = static_cast<unsigned>(std::stoul(argv[++i]));
         } else if (arg == "--max-tokens" && i + 1 < argc) {
             search_options.max_tokens = static_cast<unsigned>(std::stoul(argv[++i]));
         } else if (arg == "--careful") {
@@ -126,7 +145,11 @@ int main(int argc, char** argv) {
 
     const std::string& input = positional[0];
     gifout::ReadOptions read_options;
-    read_options.decode_pixels = info || !copy || optimize;
+    if ((optimize || unoptimize) && optimize_options.level == gifout::Lossless::Structure) {
+        std::fprintf(stderr, "level l1 cannot restructure, drop -O/-u or ask for l2\n");
+        return 2;
+    }
+    read_options.decode_pixels = info || !copy || optimize || unoptimize;
     auto result = gifout::read_gif_file(input, read_options);
     if (!quiet || result.has_errors()) print_diagnostics(result, input);
     if (!result.ok) {
@@ -146,6 +169,12 @@ int main(int argc, char** argv) {
     // restructuring can lose on some files, so the plain recompression is kept as a
     // floor: the tool must never hand back something larger than it could have
     std::vector<uint8_t> fallback;
+    if (unoptimize) {
+        const auto stats = gifout::unoptimize(result.stream);
+        if (!quiet && !stats.skipped.empty())
+            std::fprintf(stderr, "%s: not expanded: %s\n", input.c_str(), stats.skipped.c_str());
+        copy = false;
+    }
     if (optimize) {
         gifout::Stream plain = result.stream;
         for (auto& frame : plain.frames)

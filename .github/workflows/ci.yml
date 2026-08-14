@@ -23,6 +23,9 @@ jobs:
           cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
           cmake --build build -j$(nproc)
 
+      - name: Unit tests
+        run: ctest --test-dir build --output-on-failure
+
       # fixtures cover the structural features the reader has to preserve:
       # single frame, animation, interlacing, transparency, local colormaps,
       # comments and application extensions, tiny palettes
@@ -121,6 +124,37 @@ jobs:
           done
           exit $fail
 
+      # parallelism is an optimization, never a different answer
+      - name: Threads do not change the output
+        run: |
+          fail=0
+          for f in /tmp/fx/*.gif; do
+            ./build/gifoutcpp -q -O -s -j 1 "$f" /tmp/one.gif
+            ./build/gifoutcpp -q -O -s -j 0 "$f" /tmp/many.gif
+            if cmp -s /tmp/one.gif /tmp/many.gif; then
+              echo "ok  $(basename "$f")"
+            else
+              echo "FAIL threads changed the output: $(basename "$f")"
+              fail=1
+            fi
+          done
+          exit $fail
+
+      - name: Searching renders identically and never loses
+        run: |
+          fail=0
+          for f in /tmp/fx/*.gif; do
+            ./build/gifoutcpp -q "$f" /tmp/greedy.gif
+            ./build/gifoutcpp -q -s "$f" /tmp/search.gif
+            gifdiff "$f" /tmp/search.gif || { echo "FAIL renders differently: $f"; fail=1; }
+            g=$(stat -c%s /tmp/greedy.gif); s=$(stat -c%s /tmp/search.gif)
+            if [ "$s" -gt "$g" ]; then
+              echo "FAIL $(basename "$f"): search gave $s, greedy gave $g"
+              fail=1
+            fi
+          done
+          exit $fail
+
       - name: Info mode reads every fixture
         run: |
           for f in /tmp/fx/*.gif; do ./build/gifoutcpp --info "$f" > /dev/null || exit 1; done
@@ -141,6 +175,13 @@ jobs:
           cmake -S . -B build-asan -DCMAKE_BUILD_TYPE=Debug \
                 -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-sanitize-recover=all -g"
           cmake --build build-asan -j$(nproc)
+          cmake -S . -B build-tsan -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS="-fsanitize=thread -g"
+          cmake --build build-tsan -j$(nproc)
+
+      - name: Unit tests under address and thread sanitizers
+        run: |
+          ./build-asan/gifout_tests
+          ./build-tsan/gifout_tests
 
       # a parser that meets real files has to survive damaged ones: every prefix of
       # a valid gif, plus byte-level corruption, must not crash or read out of bounds
@@ -175,3 +216,6 @@ jobs:
                   sys.exit(1)
           print("200 mutated inputs handled")
           EOF
+          IM=$(command -v magick || command -v convert)
+          $IM -delay 10 -size 90x90 xc:red xc:blue -loop 0 /tmp/race.gif
+          ./build-tsan/gifoutcpp -q -O -s -j 4 /tmp/race.gif /tmp/race_out.gif

@@ -58,6 +58,9 @@ What is verified today, on a corpus of 51 real GIFs from Wikimedia Commons
   alignment** and smaller on 9 of them, at **1.8x** its speed.
 * `-O -s` together give **−12.03 % in 16 s** on that subset, against **−11.43 %**
   for gifsicle piped into flexiGIF, which spends about 737 s in flexiGIF alone.
+* On the **whole** corpus, which the established pipeline cannot finish at all,
+  `-O -s` gives **−11.42 %**: 5.8 minutes on one thread, **1.0 minute on ten**,
+  byte-identical output either way, all 51 rendering-identical.
 * With `-O` the corpus goes to **−7.87 % in 6.4 s**, against **−8.04 % in 4.8 s**
   for `gifsicle -O3`: 0.19 % behind, smaller on 5 files, identical on 20.
   **All 51 outputs are rendering-identical** (`gifdiff -w`), and 360 mutated
@@ -149,9 +152,13 @@ stream, its pixels no longer describe the same image the file carries, so the
 original bytes are copied through instead. Recompressing them would silently change
 the picture.
 
-**No mutable global state**, so the library can be used from several threads. When
-parallelism arrives it will be optional, with single-threaded output identical bit
-for bit.
+**Parallelism is an optimization, never a different answer.** The search splits a
+frame into chunks of restart positions; the forward walks inside a chunk never read
+the part of the cost table the chunk is still computing, so they are independent and
+only the small fold at the end is sequential. Each worker gets its own dictionary, no
+locks are involved, and `-j 1` runs a plain loop with no threads created at all. CI
+checks that `-j 1` and `-j 0` produce identical bytes, and the tests run under both
+the address and the thread sanitizer.
 
 ## Levels, and a note on names
 

@@ -19,6 +19,9 @@ struct SearchOptions {
     unsigned alignment = 160;
     // how far a block is explored before giving up on it
     unsigned max_tokens = 10000;
+    // 1 keeps everything on the calling thread, 0 asks the machine how many it has;
+    // the result is identical either way, only the wall clock changes
+    unsigned threads = 1;
 };
 
 struct SearchResult {

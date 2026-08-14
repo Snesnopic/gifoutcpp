@@ -45,6 +45,11 @@ struct OptimizeStats {
 // and has to be re-encoded afterwards
 OptimizeStats optimize(Stream& stream, const OptimizeOptions& options = {});
 
+// every frame back to full screen with the disposal already applied, which is what a
+// viewer shows; the inverse of the cropping above and the way to re-optimize a stream
+// somebody else optimized badly
+OptimizeStats unoptimize(Stream& stream);
+
 }  // namespace gifout
 
 #endif  // GIFOUTCPP_GIF_OPTIMIZER_HPP

@@ -2,6 +2,8 @@
 
 #include <limits>
 
+#include "gif_parallel.hpp"
+
 #include "lzw_internal.hpp"
 
 namespace gifout {
@@ -122,9 +124,6 @@ SearchResult encode_lzw_search(std::span<const uint8_t> pixels, uint16_t width, 
         std::min<std::size_t>(pixels.size(), static_cast<std::size_t>(width) * height);
     const unsigned alignment = std::max(1u, search_options.alignment);
 
-    Dictionary dict;
-    const BlockEncoder block{order, end_pos, min_code_bits, dict};
-
     // slot k covers position k * alignment; the last slot is the end of the frame
     const std::size_t slots = end_pos / alignment + 1;
     std::vector<unsigned long long> best(slots + 1, kNoPath);
@@ -133,27 +132,74 @@ SearchResult encode_lzw_search(std::span<const uint8_t> pixels, uint16_t width, 
 
     auto slot_of = [&](std::size_t pos) { return pos >= end_pos ? slots : pos / alignment; };
 
-    for (std::size_t k = slots; k-- > 0;) {
-        const std::size_t from = k * alignment;
-        if (from >= end_pos) continue;
-        unsigned long long local_best = kNoPath;
-        std::size_t local_end = end_pos;
-        block.walk(from, search_options.max_tokens, alignment,
-                   [&](std::size_t pos, unsigned long long bits) {
-                       const unsigned long long tail = best[slot_of(pos)];
-                       if (tail == kNoPath) return;
-                       const unsigned long long total = bits + tail;
-                       if (total < local_best) {
-                           local_best = total;
-                           local_end = pos;
-                       }
-                   });
-        best[k] = local_best;
-        next_pos[k] = local_end;
+    // the forward walks do not read the dp table for anything inside their own chunk, so
+    // a chunk's walks are independent and the only sequential part is folding the few
+    // candidates that land inside it. the answer is the same whatever the thread count.
+    const unsigned threads = resolve_threads(search_options.threads);
+    constexpr std::size_t kChunk = 256;
+    struct Candidate {
+        std::size_t pos;
+        unsigned long long bits;
+    };
+    std::vector<std::vector<Candidate>> inside(kChunk);
+    std::vector<unsigned long long> far_best(kChunk);
+    std::vector<std::size_t> far_end(kChunk);
+    std::vector<Dictionary> dicts(std::max(1u, threads));
+
+    for (std::size_t high = slots; high > 0;) {
+        const std::size_t low = high > kChunk ? high - kChunk : 0;
+        const std::size_t width_of_chunk = high - low;
+
+        parallel_for(width_of_chunk, threads, [&](std::size_t idx, unsigned worker) {
+            const std::size_t k = low + idx;
+            inside[idx].clear();
+            far_best[idx] = kNoPath;
+            far_end[idx] = end_pos;
+            const std::size_t from = k * alignment;
+            if (from >= end_pos) return;
+            const BlockEncoder block{order, end_pos, min_code_bits,
+                                     dicts[std::min<std::size_t>(worker, dicts.size() - 1)]};
+            block.walk(from, search_options.max_tokens, alignment,
+                       [&](std::size_t pos, unsigned long long bits) {
+                           const std::size_t slot = slot_of(pos);
+                           if (slot >= high) {
+                               const unsigned long long tail = best[slot];
+                               if (tail == kNoPath) return;
+                               const unsigned long long total = bits + tail;
+                               if (total < far_best[idx]) {
+                                   far_best[idx] = total;
+                                   far_end[idx] = pos;
+                               }
+                           } else {
+                               inside[idx].push_back({pos, bits});
+                           }
+                       });
+        });
+
+        for (std::size_t idx = width_of_chunk; idx-- > 0;) {
+            const std::size_t k = low + idx;
+            if (k * alignment >= end_pos) continue;
+            unsigned long long local_best = far_best[idx];
+            std::size_t local_end = far_end[idx];
+            for (const auto& c : inside[idx]) {
+                const unsigned long long tail = best[slot_of(c.pos)];
+                if (tail == kNoPath) continue;
+                const unsigned long long total = c.bits + tail;
+                if (total < local_best) {
+                    local_best = total;
+                    local_end = c.pos;
+                }
+            }
+            best[k] = local_best;
+            next_pos[k] = local_end;
+        }
+        high = low;
     }
 
     if (best[0] == kNoPath) return result;  // no path: max_tokens too small for alignment
 
+    Dictionary dict;
+    const BlockEncoder block{order, end_pos, min_code_bits, dict};
     BitSink sink;
     // a leading clear code is conventional and every decoder expects to survive it
     sink.put(static_cast<unsigned>(1 << min_code_bits), min_code_bits + 1);

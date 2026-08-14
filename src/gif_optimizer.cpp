@@ -101,7 +101,6 @@ private:
             if (static_cast<unsigned>(f.left) + f.width > stream_.screen_width ||
                 static_cast<unsigned>(f.top) + f.height > stream_.screen_height)
                 return "a frame reaches outside the screen";
-            if (f.disposal == Disposal::Previous) return "previous disposal is not handled yet";
         }
         return nullptr;
     }
@@ -144,9 +143,13 @@ private:
         // canvas state while frame i is on screen
         const std::vector<uint16_t>& advance(std::size_t i) {
             const Frame& f = opt_.stream_.frames[i];
+            if (f.disposal == Disposal::Previous) saved_ = canvas_;
             opt_.paint(canvas_, opt_.lifted_[i], f, true);
             target_ = canvas_;
-            if (f.disposal == Disposal::Background) opt_.erase(canvas_, f);
+            if (f.disposal == Disposal::Background)
+                opt_.erase(canvas_, f);
+            else if (f.disposal == Disposal::Previous)
+                canvas_ = saved_;
             return target_;
         }
 
@@ -154,6 +157,7 @@ private:
         const Optimizer& opt_;
         std::vector<uint16_t> canvas_;
         std::vector<uint16_t> target_;
+        std::vector<uint16_t> saved_;
     };
 
     [[nodiscard]] std::size_t area() const { return static_cast<std::size_t>(width_) * height_; }
@@ -544,6 +548,14 @@ private:
 }  // namespace
 
 OptimizeStats optimize(Stream& stream, const OptimizeOptions& options) {
+    return Optimizer(stream, options).run();
+}
+
+OptimizeStats unoptimize(Stream& stream) {
+    OptimizeOptions options;
+    options.crop_frames = false;
+    options.use_transparency = false;
+    options.drop_redundant_frames = false;
     return Optimizer(stream, options).run();
 }
 
