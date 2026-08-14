@@ -28,13 +28,15 @@ jobs:
       # comments and application extensions, tiny palettes
       - name: Generate fixtures
         run: |
+          # ubuntu still ships imagemagick 6, which has convert but not magick
+          IM=$(command -v magick || command -v convert)
           mkdir -p /tmp/fx
-          magick -size 160x120 gradient:red-blue /tmp/fx/static.gif
-          magick -size 64x64 xc:white -fill black \
-                 -draw "circle 32,32 32,8" /tmp/fx/shapes.gif
-          magick -delay 10 -size 80x80 xc:red xc:green xc:blue \
-                 -loop 0 /tmp/fx/anim.gif
-          magick -size 100x100 plasma:fractal -colors 8 /tmp/fx/few_colors.gif
+          $IM -size 160x120 gradient:red-blue /tmp/fx/static.gif
+          $IM -size 64x64 xc:white -fill black \
+              -draw "circle 32,32 32,8" /tmp/fx/shapes.gif
+          $IM -delay 10 -size 80x80 xc:red xc:green xc:blue \
+              -loop 0 /tmp/fx/anim.gif
+          $IM -size 100x100 plasma:fractal -colors 8 /tmp/fx/few_colors.gif
           gifsicle --interlace /tmp/fx/static.gif -o /tmp/fx/interlaced.gif
           gifsicle -O3 /tmp/fx/anim.gif -o /tmp/fx/anim_opt.gif
           gifsicle --comment "gifoutcpp test" /tmp/fx/shapes.gif -o /tmp/fx/commented.gif
@@ -98,7 +100,8 @@ jobs:
       # a valid gif, plus byte-level corruption, must not crash or read out of bounds
       - name: Truncated and corrupted inputs
         run: |
-          magick -delay 10 -size 60x60 xc:red xc:green xc:blue -loop 0 /tmp/anim.gif
+          IM=$(command -v magick || command -v convert)
+          $IM -delay 10 -size 60x60 xc:red xc:green xc:blue -loop 0 /tmp/anim.gif
           size=$(stat -c%s /tmp/anim.gif)
           for cut in $(seq 1 17 "$size"); do
             head -c "$cut" /tmp/anim.gif > /tmp/trunc.gif
