@@ -33,8 +33,8 @@ implicit default.
 
 ## Status
 
-Early. The core reads, re-encodes and writes GIFs; the structural optimizer and the
-optimal LZW search are not written yet.
+Early. The core reads, restructures, re-encodes and writes GIFs; the optimal LZW
+search is not written yet.
 
 What is verified today, on a corpus of 51 real GIFs from Wikimedia Commons
 (31.6 MB, 136.5 M pixels, 1 to 475 frames):
@@ -52,6 +52,10 @@ What is verified today, on a corpus of 51 real GIFs from Wikimedia Commons
   51 outputs L1-equivalent and `gifdiff`-identical. That matches what gifsicle's
   own encoder achieves, which is the point: it is the baseline the optimal LZW
   search has to beat.
+* With `-O` the corpus goes to **−7.87 % in 6.4 s**, against **−8.04 % in 4.8 s**
+  for `gifsicle -O3`: 0.19 % behind, smaller on 5 files, identical on 20.
+  **All 51 outputs are rendering-identical** (`gifdiff -w`), and 360 mutated
+  inputs go through `-O` under ASan/UBSan without a crash.
 
 For reference, the reader accepts the whole corpus, including the four files
 flexiGIF's parser rejects outright.
@@ -80,6 +84,8 @@ cmake -S . -B build -DGIFOUT_BUILD_BENCH=ON -DCHISEL_ROOT=../chisel
 ```
 gifoutcpp [options] <input.gif> [output.gif]
 
+  -O, --optimize    rebuild frames and palettes, keeping only the rendered result
+      --deinterlace drop interlacing, which costs size and only helps slow links
   -i, --info        report structure and diagnostics, write nothing
   -c, --copy        copy the lzw data instead of re-encoding it
       --careful     take the code size from the palette, not from the pixels
@@ -107,6 +113,16 @@ bits that carry no meaning (a transparent index stored with the transparency fla
 off). None of it matters once the file is re-encoded, but preserving it makes an
 untouched round trip provably a no-op, which is the strongest available test of
 reader and writer.
+
+**`-O` can never make a file larger.** Restructuring loses on some inputs, so the
+plain recompression is computed as well and the smaller of the two is written.
+
+**The background is transparent only if the first frame says so.** A GIF shows its
+background colour under uncovered area only when the first frame declares no
+transparent index; otherwise that area is transparent. Cropping a frame can expose
+area that was covered before, so the emitted stream has to keep the declaration even
+when no pixel uses it. It is carried on an index the frame never uses, which costs
+nothing; only when every index is taken does the palette grow by one entry.
 
 **A damaged frame is never re-encoded.** If the decoder had to repair a frame's LZW
 stream, its pixels no longer describe the same image the file carries, so the

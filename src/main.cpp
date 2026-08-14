@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "gif_encoder.hpp"
+#include "gif_optimizer.hpp"
 #include "gif_reader.hpp"
 #include "gif_writer.hpp"
 
@@ -19,6 +20,8 @@ void usage() {
         "\n"
         "usage: gifoutcpp [options] <input.gif> [output.gif]\n"
         "\n"
+        "  -O, --optimize    rebuild frames and palettes, keeping only the rendered result\n"
+        "      --deinterlace drop interlacing, which costs size and only helps slow links\n"
         "  -i, --info        report structure and diagnostics, write nothing\n"
         "  -c, --copy        copy the lzw data instead of re-encoding it\n"
         "      --careful     take the code size from the palette, not from the pixels\n"
@@ -63,7 +66,8 @@ void print_info(const gifout::Stream& s) {
 }  // namespace
 
 int main(int argc, char** argv) {
-    bool info = false, quiet = false, copy = false;
+    bool info = false, quiet = false, copy = false, optimize = false;
+    gifout::OptimizeOptions optimize_options;
     gifout::WriteOptions write_options;
     gifout::EncodeOptions encode_options;
     std::vector<std::string> positional;
@@ -78,6 +82,11 @@ int main(int argc, char** argv) {
             return 0;
         } else if (arg == "-i" || arg == "--info") {
             info = true;
+        } else if (arg == "-O" || arg == "--optimize") {
+            optimize = true;
+        } else if (arg == "--deinterlace") {
+            optimize = true;
+            optimize_options.deinterlace = true;
         } else if (arg == "-c" || arg == "--copy") {
             copy = true;
         } else if (arg == "--careful") {
@@ -105,7 +114,7 @@ int main(int argc, char** argv) {
 
     const std::string& input = positional[0];
     gifout::ReadOptions read_options;
-    read_options.decode_pixels = info || !copy;
+    read_options.decode_pixels = info || !copy || optimize;
     auto result = gifout::read_gif_file(input, read_options);
     if (!quiet || result.has_errors()) print_diagnostics(result, input);
     if (!result.ok) {
@@ -120,6 +129,32 @@ int main(int argc, char** argv) {
     if (positional.size() < 2) {
         std::fprintf(stderr, "no output file given\n");
         return 2;
+    }
+
+    // restructuring can lose on some files, so the plain recompression is kept as a
+    // floor: the tool must never hand back something larger than it could have
+    std::vector<uint8_t> fallback;
+    if (optimize) {
+        gifout::Stream plain = result.stream;
+        for (auto& frame : plain.frames)
+            if (frame.pixels_complete)
+                gifout::encode_frame(frame, gifout::effective_palette_size(frame, plain),
+                                     encode_options);
+        fallback = gifout::write_gif(plain, write_options);
+
+        const auto stats = gifout::optimize(result.stream, optimize_options);
+        if (!quiet) {
+            if (!stats.skipped.empty())
+                std::fprintf(stderr, "%s: not optimized: %s\n", input.c_str(),
+                             stats.skipped.c_str());
+            else
+                std::fprintf(stderr,
+                             "%s: %zu frames (%zu dropped), %zu -> %zu pixels, %zu -> %zu colors\n",
+                             input.c_str(), result.stream.frames.size(), stats.frames_dropped,
+                             stats.pixels_before, stats.pixels_after, stats.colors_before,
+                             stats.colors_after);
+        }
+        copy = false;
     }
 
     if (!copy) {
@@ -137,7 +172,16 @@ int main(int argc, char** argv) {
         }
     }
 
-    if (!gifout::write_gif_file(result.stream, positional[1], write_options)) {
+    auto bytes = gifout::write_gif(result.stream, write_options);
+    if (!fallback.empty() && fallback.size() < bytes.size()) {
+        if (!quiet)
+            std::fprintf(stderr, "%s: restructuring lost %zu bytes, keeping the plain encode\n",
+                         input.c_str(), bytes.size() - fallback.size());
+        bytes = std::move(fallback);
+    }
+    std::FILE* out = std::fopen(positional[1].c_str(), "wb");
+    if (!out || std::fwrite(bytes.data(), 1, bytes.size(), out) != bytes.size() ||
+        std::fclose(out) != 0) {
         std::fprintf(stderr, "%s: cannot write\n", positional[1].c_str());
         return 1;
     }

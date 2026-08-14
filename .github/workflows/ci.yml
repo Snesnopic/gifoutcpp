@@ -90,6 +90,37 @@ jobs:
           done
           exit $fail
 
+      # restructuring may only preserve the animation as played, which is what gifdiff
+      # checks; -w lets it ignore frames merged away on purpose
+      - name: Optimized output renders identically
+        run: |
+          fail=0
+          for f in /tmp/fx/*.gif; do
+            ./build/gifoutcpp -q -O "$f" "/tmp/out.gif" || { echo "FAIL $f"; fail=1; continue; }
+            if gifdiff -w "$f" /tmp/out.gif; then
+              echo "ok  $(basename "$f") $(stat -c%s "$f") -> $(stat -c%s /tmp/out.gif)"
+            else
+              echo "FAIL renders differently: $(basename "$f")"
+              fail=1
+            fi
+          done
+          exit $fail
+
+      # the optimizer is allowed to lose on a given file, but the tool must not
+      - name: Optimizing never makes a file larger
+        run: |
+          fail=0
+          for f in /tmp/fx/*.gif; do
+            ./build/gifoutcpp -q "$f" /tmp/plain.gif
+            ./build/gifoutcpp -q -O "$f" /tmp/opt.gif
+            plain=$(stat -c%s /tmp/plain.gif); opt=$(stat -c%s /tmp/opt.gif)
+            if [ "$opt" -gt "$plain" ]; then
+              echo "FAIL $(basename "$f"): -O gave $opt, plain gave $plain"
+              fail=1
+            fi
+          done
+          exit $fail
+
       - name: Info mode reads every fixture
         run: |
           for f in /tmp/fx/*.gif; do ./build/gifoutcpp --info "$f" > /dev/null || exit 1; done
@@ -136,7 +167,7 @@ jobs:
               for _ in range(random.randint(1, 8)):
                   d[random.randrange(len(d))] = random.randrange(256)
               open('/tmp/fuzz.gif','wb').write(d)
-              p = subprocess.run(['./build-asan/gifoutcpp','--info','/tmp/fuzz.gif'],
+              p = subprocess.run(['./build-asan/gifoutcpp','-q','-O','/tmp/fuzz.gif','/tmp/fz.gif'],
                                  capture_output=True)
               if p.returncode > 2:
                   sys.stderr.write(f"crash on mutation {i}, exit {p.returncode}\n")
