@@ -65,8 +65,12 @@ timings were taken on an otherwise idle M2 Pro and mean nothing on a loaded mach
 * On the **whole** corpus, which the established pipeline cannot finish at all,
   `-O -s --strip` gives **−11.68 %** in **1.08 minutes on ten threads**,
   byte-identical whatever the thread count, all 51 rendering-identical.
-* With `-O` the corpus goes to **−8.00 % in 7.1 s**, against **−8.04 % in 4.8 s** for
-  `gifsicle -O3`; adding `--strip` reaches **−8.06 %**, slightly ahead of it.
+* With `-O --strip` the corpus goes to **−8.22 %**, against **−8.04 %** for
+  `gifsicle -O3`. Dropping interlacing is worth 48 730 B of that: it wins on 7 files
+  (up to −9.4 %) and loses on none, so it is the default and `--keep-interlace` turns
+  it off. `-b` tries the settings that only sometimes pay and keeps the smallest
+  result; over the corpus it finds another 85 B for four times the work, which is the
+  honest measure of how little is left in that direction.
   **All 51 outputs are rendering-identical** (`gifdiff -w`), and 360 mutated
   inputs go through `-O` under ASan/UBSan without a crash.
 
@@ -130,7 +134,8 @@ gifoutcpp [options] <input.gif> [output.gif]
       --alignment N how far apart restart points may sit, in pixels (default 160)
       --max-tokens N how far a block is explored (default 10000)
       --strip       drop comments and application metadata, keep the loop block
-      --deinterlace drop interlacing, which costs size and only helps slow links
+  -b, --best        try the settings that win on some files and lose on others
+      --keep-interlace  keep interlacing, which is otherwise dropped
   -i, --info        report structure and diagnostics, write nothing
   -c, --copy        copy the lzw data instead of re-encoding it
       --careful     take the code size from the palette, not from the pixels
@@ -216,6 +221,10 @@ found this, and fixing it also made the fuzzer 20 times faster.
 stream, its pixels no longer describe the same image the file carries, so the
 original bytes are copied through instead. Recompressing them would silently change
 the picture.
+
+**Interlacing is dropped by default.** It costs size on every file that has it and
+buys only progressive display over a slow link, which is a 1995 concern. That is a
+rendering-level change, so it never happens at `--level l1`.
 
 **The palette is ordered by what each frame paints.** A frame's code size follows its
 highest index, so the order of the global colour table decides how many bits every

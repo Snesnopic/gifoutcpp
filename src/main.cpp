@@ -27,7 +27,10 @@ void usage() {
         "      --max-tokens N how far a block is explored (default 10000)\n"
         "  -j, --threads N   threads for the search, 0 means as many as the machine has\n"
         "                    (default 1; the output is identical whatever you pick)\n"
-        "      --deinterlace drop interlacing, which costs size and only helps slow links\n"
+        "  -b, --best        try the settings that win on some files and lose on others,\n"
+        "                    and keep whichever came out smallest\n"
+        "      --keep-interlace  keep interlacing; it is dropped by default because it\n"
+        "                    costs size and only buys progressive display over a slow link\n"
         "      --strip       drop comments and application metadata, keep the loop block\n"
         "  -i, --info        report structure and diagnostics, write nothing\n"
         "  -c, --copy        copy the lzw data instead of re-encoding it\n"
@@ -90,8 +93,10 @@ int main(int argc, char** argv) {
             info = true;
         } else if (arg == "-O" || arg == "--optimize") {
             options.restructure = true;
-        } else if (arg == "--deinterlace") {
-            options.deinterlace = true;
+        } else if (arg == "--keep-interlace") {
+            options.keep_interlace = true;
+        } else if (arg == "-b" || arg == "--best") {
+            options.try_everything = true;
         } else if (arg == "-u" || arg == "--unoptimize") {
             options.unoptimize = true;
         } else if (arg == "--strip") {
@@ -168,9 +173,12 @@ int main(int argc, char** argv) {
         return 1;
     }
     if (!quiet) {
-        std::fprintf(stderr, "%s: %zu -> %zu bytes, %zu -> %zu frames%s%s\n", input.c_str(),
+        std::fprintf(stderr, "%s: %zu -> %zu bytes, %zu -> %zu frames%s%s%s\n", input.c_str(),
                      result.input_bytes, result.output_bytes, result.frames_in, result.frames_out,
                      result.metadata_removed ? ", metadata dropped" : "",
+                     result.variant.empty() || result.variant == "asked"
+                         ? ""
+                         : (", won by " + result.variant).c_str(),
                      result.restructure_note.empty() ? "" : (", " + result.restructure_note).c_str());
     }
     return 0;

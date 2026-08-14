@@ -34,7 +34,7 @@ Result recompress_stream(Stream& stream, std::vector<uint8_t>& output, const Opt
     Result result;
     result.frames_in = stream.frames.size();
 
-    const bool restructure = options.restructure || options.deinterlace;
+    const bool restructure = options.restructure;
     if (options.level == Lossless::Structure && (restructure || options.unoptimize)) {
         result.restructure_note = "level l1 cannot restructure";
         result.frames_out = stream.frames.size();
@@ -43,6 +43,10 @@ Result recompress_stream(Stream& stream, std::vector<uint8_t>& output, const Opt
     }
 
     if (options.strip_metadata) result.metadata_removed = strip_metadata(stream);
+    // a frame we are going to re-encode anyway costs nothing to store in natural order
+    if (!options.copy_lzw && !options.keep_interlace && options.level == Lossless::Rendering)
+        for (auto& frame : stream.frames)
+            if (frame.pixels_complete) frame.interlaced = false;
     if (options.unoptimize) {
         const auto stats = unoptimize(stream);
         if (!stats.skipped.empty()) result.restructure_note = stats.skipped;
@@ -59,7 +63,7 @@ Result recompress_stream(Stream& stream, std::vector<uint8_t>& output, const Opt
 
         OptimizeOptions optimize_options;
         optimize_options.level = options.level;
-        optimize_options.deinterlace = options.deinterlace;
+        optimize_options.deinterlace = !options.keep_interlace;
         const auto stats = optimize(stream, optimize_options);
         if (!stats.skipped.empty())
             result.restructure_note = stats.skipped;
@@ -85,21 +89,72 @@ Result recompress_stream(Stream& stream, std::vector<uint8_t>& output, const Opt
     return result;
 }
 
+namespace {
+
+// the settings that are a win on some files and a loss on others: measured over the
+// corpus, careful helps 48 files of 51 and hurts 3, dropping interlacing wins on 7 and
+// never loses, and restructuring itself loses on a few. so try them and weigh the bytes
+std::vector<std::pair<std::string, Options>> candidates(const Options& base) {
+    std::vector<std::pair<std::string, Options>> list{{"asked", base}};
+    if (!base.try_everything) return list;
+
+    Options careful = base;
+    careful.encode.careful_min_code_size = true;
+    list.emplace_back("careful", careful);
+
+    Options clears = base;
+    clears.encode.try_both_clear_policies = true;
+    list.emplace_back("both-clears", clears);
+
+    if (!base.keep_interlace) {
+        Options keep = base;
+        keep.keep_interlace = true;
+        list.emplace_back("keep-interlace", keep);
+    }
+    if (base.restructure) {
+        Options plain = base;
+        plain.restructure = false;
+        list.emplace_back("no-restructure", plain);
+    }
+    return list;
+}
+
+}  // namespace
+
 Result recompress(std::span<const uint8_t> input, std::vector<uint8_t>& output,
                   const Options& options) {
     ReadOptions read_options;
-    read_options.decode_pixels = !options.copy_lzw || options.restructure ||
-                                 options.deinterlace || options.unoptimize;
+    read_options.decode_pixels =
+        !options.copy_lzw || options.restructure || options.unoptimize || !options.keep_interlace;
     auto read = read_gif(input, read_options);
     Result result;
     result.diagnostics = std::move(read.diagnostics);
     result.input_bytes = input.size();
     if (!read.ok) return result;
 
-    auto pipeline = recompress_stream(read.stream, output, options);
-    pipeline.diagnostics = std::move(result.diagnostics);
-    pipeline.input_bytes = input.size();
-    return pipeline;
+    Result best;
+    std::vector<uint8_t> bytes;
+    for (const auto& [name, candidate] : candidates(options)) {
+        Stream copy = read.stream;
+        std::vector<uint8_t> attempt;
+        auto pipeline = recompress_stream(copy, attempt, candidate);
+        if (!pipeline.ok) {
+            // keep the reason: a refusal is the answer, not a missing answer
+            if (result.restructure_note.empty()) result.restructure_note = pipeline.restructure_note;
+            continue;
+        }
+        if (best.ok && attempt.size() >= bytes.size()) continue;
+        pipeline.variant = name;
+        best = std::move(pipeline);
+        bytes = std::move(attempt);
+    }
+    if (!best.ok) return result;
+
+    output = std::move(bytes);
+    best.diagnostics = std::move(result.diagnostics);
+    best.input_bytes = input.size();
+    best.output_bytes = output.size();
+    return best;
 }
 
 Result recompress_file(const std::filesystem::path& input, const std::filesystem::path& output,

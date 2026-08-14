@@ -19,7 +19,7 @@
 #include "gifoutcpp/gif_writer.hpp"
 
 #define GIFOUTCPP_VERSION_MAJOR 0
-#define GIFOUTCPP_VERSION_MINOR 2
+#define GIFOUTCPP_VERSION_MINOR 3
 #define GIFOUTCPP_VERSION_PATCH 0
 
 namespace gifout {
@@ -33,8 +33,15 @@ struct Options {
     bool strip_metadata = false;  // drop comments and application blocks, keep the loop
     bool unoptimize = false;      // expand every frame back to full screen first
     bool restructure = false;     // crop frames, pick disposal and transparency, rebuild palettes
-    bool deinterlace = false;     // implies restructure
     bool search_restarts = false; // search the lzw restart points instead of guessing
+
+    // interlacing costs size and only buys progressive display over a slow link, so a
+    // re-encoded frame drops it. it is a rendering level change, never applied at l1.
+    bool keep_interlace = false;
+
+    // try the settings that are a win on some files and a loss on others, and keep
+    // whichever came out smallest. costs a full pass per candidate.
+    bool try_everything = false;
 
     bool copy_lzw = false;   // do not re-encode at all, only rewrite the container
     bool reblock_lzw = false;  // re-chunk copied lzw at 255 bytes
@@ -51,6 +58,7 @@ struct Result {
     std::size_t frames_out = 0;
     std::size_t metadata_removed = 0;
     bool restructured = false;  // false when restructuring was asked for but not used
+    std::string variant;        // which candidate won when try_everything was on
     // why restructuring did not happen or did not pay, empty when it did
     std::string restructure_note;
     std::vector<Diagnostic> diagnostics;
