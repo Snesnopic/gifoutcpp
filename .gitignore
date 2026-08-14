@@ -1,0 +1,15 @@
+build/
+build-*/
+cmake-build-*/
+.idea/
+.DS_Store
+*.o
+*.a
+
+# downloaded from wikimedia commons, rebuild with bench/fetch_corpus.py
+bench/corpus/
+
+# derived from third-party sources that carry no license grant,
+# rebuild with bench/instrumented/instrument.py
+bench/instrumented/LzwEncoder_inst.hpp
+bench/instrumented/LzwEncoder_inst.cpp
