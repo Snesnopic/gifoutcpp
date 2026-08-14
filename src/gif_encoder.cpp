@@ -116,6 +116,132 @@ EncodeResult encode_pass(const PixelOrder& order, std::size_t end_pos, uint8_t m
     return result;
 }
 
+// a handful of entries defined during a simulated lookahead, consulted before the real
+// dictionary and thrown away afterwards. the alternative, mutating and then undoing the
+// real table, cannot be done safely with open addressing.
+class Overlay {
+public:
+    void clear() { count_ = 0; }
+
+    [[nodiscard]] int find(int prefix, uint8_t suffix) const {
+        for (unsigned i = 0; i < count_; ++i)
+            if (entries_[i].prefix == prefix && entries_[i].suffix == suffix)
+                return entries_[i].code;
+        return -1;
+    }
+
+    void insert(int prefix, uint8_t suffix, int code) {
+        if (count_ < kMax) entries_[count_++] = {prefix, code, suffix};
+    }
+
+private:
+    static constexpr unsigned kMax = 32;
+    struct Entry {
+        int prefix, code;
+        uint8_t suffix;
+    };
+    std::array<Entry, kMax> entries_{};
+    unsigned count_ = 0;
+};
+
+// the longest match from `pos`, looking through the overlay first
+std::pair<int, std::size_t> longest_match(const Dictionary& dict, const Overlay& overlay,
+                                          const PixelOrder& order, std::size_t pos,
+                                          std::size_t end) {
+    int code = order.at(pos);
+    std::size_t length = 1;
+    while (pos + length < end) {
+        const uint8_t suffix = order.at(pos + length);
+        int child = overlay.find(code, suffix);
+        if (child < 0) child = dict.find(code, suffix);
+        if (child < 0) break;
+        code = child;
+        ++length;
+    }
+    return {code, length};
+}
+
+int code_for(const Dictionary& dict, const Overlay& overlay, const PixelOrder& order,
+             std::size_t pos, std::size_t length) {
+    int code = order.at(pos);
+    for (std::size_t i = 1; i < length; ++i) {
+        const uint8_t suffix = order.at(pos + i);
+        const int child = overlay.find(code, suffix);
+        code = child >= 0 ? child : dict.find(code, suffix);
+    }
+    return code;
+}
+
+// one block, choosing each token by looking a few tokens ahead. the same routine both
+// decides and emits, so the cost model cannot drift away from the bytes written
+EncodeResult encode_with_lookahead(const PixelOrder& order, std::size_t end_pos,
+                                   uint8_t min_code_bits, unsigned depth, unsigned probe) {
+    EncodeResult result;
+    result.min_code_size = min_code_bits;
+    const int clear_code = 1 << min_code_bits;
+
+    Dictionary dict;
+    Overlay overlay;
+    BitSink sink;
+    int next_code = clear_code + 2;
+    int code_bits = min_code_bits + 1;
+    std::size_t pos = 0;
+
+    sink.put(static_cast<unsigned>(clear_code), code_bits);
+    while (pos < end_pos) {
+        overlay.clear();
+        const auto [greedy_code, greedy_len] = longest_match(dict, overlay, order, pos, end_pos);
+        (void)greedy_code;
+        std::size_t choice = greedy_len;
+
+        if (depth > 1 && greedy_len > 1) {
+            double best = 1e30;
+            for (std::size_t len = greedy_len; len >= 1 && len + depth > greedy_len; --len) {
+                overlay.clear();
+                unsigned bits = 0;
+                int width = code_bits;
+                int codes = next_code;
+                std::size_t at = pos;
+                std::size_t taken = len;
+                for (unsigned step = 0; step <= probe && at < end_pos; ++step) {
+                    if (step > 0) {
+                        const auto [c, l] = longest_match(dict, overlay, order, at, end_pos);
+                        (void)c;
+                        taken = l;
+                    }
+                    const int code = code_for(dict, overlay, order, at, taken);
+                    bits += static_cast<unsigned>(width);
+                    if (codes < kMaxCode) {
+                        if (at + taken < end_pos)
+                            overlay.insert(code, order.at(at + taken), codes);
+                        ++codes;
+                    }
+                    if (codes > (1 << width) && width < kMaxCodeBits) ++width;
+                    at += taken;
+                }
+                const double score = static_cast<double>(bits) / static_cast<double>(at - pos);
+                if (score < best - 1e-12) {
+                    best = score;
+                    choice = len;
+                }
+            }
+            overlay.clear();
+        }
+
+        const int code = code_for(dict, overlay, order, pos, choice);
+        sink.put(static_cast<unsigned>(code), code_bits);
+        if (next_code < kMaxCode) {
+            if (pos + choice < end_pos) dict.insert(code, order.at(pos + choice), next_code);
+            ++next_code;
+        }
+        if (next_code > (1 << code_bits) && code_bits < kMaxCodeBits) ++code_bits;
+        pos += choice;
+    }
+    sink.put(static_cast<unsigned>(clear_code + 1), code_bits);
+    result.lzw = sink.take();
+    return result;
+}
+
 }  // namespace
 
 EncodeResult encode_lzw(std::span<const uint8_t> pixels, uint16_t width, uint16_t height,
@@ -135,6 +261,12 @@ EncodeResult encode_lzw(std::span<const uint8_t> pixels, uint16_t width, uint16_
     if (options.try_both_clear_policies && !options.eager_clear && result.cleared) {
         EncodeResult eager = encode_pass(order, end_pos, min_code_bits, true);
         if (eager.lzw.size() < result.lzw.size()) result = std::move(eager);
+    }
+    if (options.lookahead > 1) {
+        EncodeResult smart = encode_with_lookahead(order, end_pos, min_code_bits, options.lookahead,
+                                                   options.lookahead_probe);
+        // only if it really came out smaller: a lookahead is a heuristic and does lose
+        if (!smart.lzw.empty() && smart.lzw.size() < result.lzw.size()) result = std::move(smart);
     }
     return result;
 }

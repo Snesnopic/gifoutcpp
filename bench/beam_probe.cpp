@@ -208,8 +208,8 @@ int main(int argc, char** argv) {
             std::printf("%s frame %zu, %zu pixels\n",
                         path.substr(path.find_last_of('/') + 1).c_str(), f, frame.pixels.size());
             unsigned baseline = 0;
-            for (const std::size_t beam : {std::size_t{1}, std::size_t{2}, std::size_t{4},
-                                           std::size_t{8}, std::size_t{16}}) {
+            std::vector<std::size_t> beams{1, 4, 16, 64, 256, 1024, 4096};
+            for (const std::size_t beam : beams) {
                 const State best = search(frame.pixels, mcb, beam, widths);
                 const auto tokens = unwind(best.tokens);
                 const auto bytes = emit(frame.pixels, mcb, tokens);
@@ -218,9 +218,10 @@ int main(int argc, char** argv) {
                                                      frame.height, false, diagnostics);
                 const bool sound = back.pixels == frame.pixels && back.complete;
                 if (beam == 1) baseline = best.bits;
-                std::printf("   beam %2zu: %8u bits  %+7.3f%%  %s\n", beam, best.bits,
+                std::printf("   beam %6zu: %8u bits  %+7.3f%%  %s\n", beam, best.bits,
                             baseline ? 100.0 * (double(best.bits) / double(baseline) - 1.0) : 0.0,
                             sound ? "decodes" : "DECODE MISMATCH");
+                std::fflush(stdout);
             }
             break;  // one frame per file is enough to see the shape
         }

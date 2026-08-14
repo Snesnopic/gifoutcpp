@@ -27,6 +27,8 @@ void usage() {
         "      --max-tokens N how far a block is explored (default 10000)\n"
         "  -j, --threads N   threads for the search, 0 means as many as the machine has\n"
         "                    (default 1; the output is identical whatever you pick)\n"
+        "      --lookahead N try N match lengths per token instead of only the longest,\n"
+        "                    keeping the result only when it really came out smaller\n"
         "  -b, --best        try the settings that win on some files and lose on others,\n"
         "                    and keep whichever came out smallest\n"
         "      --keep-interlace  keep interlacing; it is dropped by default because it\n"
@@ -121,6 +123,8 @@ int main(int argc, char** argv) {
             options.search.max_tokens = static_cast<unsigned>(std::stoul(argv[++i]));
         } else if (arg == "-c" || arg == "--copy") {
             options.copy_lzw = true;
+        } else if (arg == "--lookahead" && i + 1 < argc) {
+            options.encode.lookahead = static_cast<unsigned>(std::stoul(argv[++i]));
         } else if (arg == "--careful") {
             options.encode.careful_min_code_size = true;
         } else if (arg == "--eager-clear") {

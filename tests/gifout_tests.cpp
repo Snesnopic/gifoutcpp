@@ -124,6 +124,34 @@ void test_search_matches_and_never_loses() {
     }
 }
 
+// the lookahead is a heuristic, so the only things it must guarantee are that its
+// output decodes to the same pixels and that it is never kept when it is bigger
+void test_lookahead_never_loses() {
+    std::mt19937 rng(4242);
+    for (int trial = 0; trial < 8; ++trial) {
+        const uint16_t w = 97, h = 61;
+        auto frame = make_frame(w, h, [&](uint16_t x, uint16_t y) -> uint8_t {
+            switch (trial % 4) {
+                case 0: return static_cast<uint8_t>((x / 5 + y / 3) % 8);
+                case 1: return static_cast<uint8_t>(rng() % 8);
+                case 2: return static_cast<uint8_t>(((x ^ y) & 1) ? 0 : (x % 8));
+                default: return 3;
+            }
+        });
+        const auto greedy = encode_lzw(frame.pixels, w, h, false, 8);
+        EncodeOptions options;
+        options.lookahead = 4;
+        options.lookahead_probe = 4;
+        const auto smart = encode_lzw(frame.pixels, w, h, false, 8, options);
+
+        check(smart.lzw.size() <= greedy.lzw.size(), "lookahead is never kept when bigger");
+        std::vector<Diagnostic> diagnostics;
+        const auto back = decode_lzw(smart.lzw, smart.min_code_size, w, h, false, diagnostics);
+        check(back.pixels == frame.pixels, "lookahead output decodes to the same pixels");
+        check(back.complete && diagnostics.empty(), "lookahead output is a clean stream");
+    }
+}
+
 // ----- container -----
 
 void test_container_round_trip() {
@@ -464,6 +492,7 @@ int main(int argc, char** argv) {
     const std::vector<std::pair<const char*, void (*)()>> tests{
         {"lzw round trip", test_lzw_round_trip},
         {"search", test_search_matches_and_never_loses},
+        {"lookahead", test_lookahead_never_loses},
         {"container round trip", test_container_round_trip},
         {"reader survives damage", test_reader_survives_damage},
         {"optimizer preserves the animation", test_optimizer_preserves_the_animation},

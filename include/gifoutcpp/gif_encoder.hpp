@@ -19,6 +19,12 @@ struct EncodeOptions {
     bool try_both_clear_policies = false;
     // override the code size entirely, 0 means compute it
     uint8_t min_code_size = 0;
+
+    // taking a shorter match than the longest one changes what enters the dictionary
+    // and can pay off later, which greedy never sees. 0 or 1 means pure greedy; the
+    // result is only kept when it really came out smaller, so this can never lose.
+    unsigned lookahead = 0;
+    unsigned lookahead_probe = 4;
 };
 
 struct EncodeResult {
