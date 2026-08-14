@@ -251,3 +251,54 @@ jobs:
           IM=$(command -v magick || command -v convert)
           $IM -delay 10 -size 90x90 xc:red xc:blue -loop 0 /tmp/race.gif
           ./build-tsan/gifoutcpp -q -O -s -j 4 /tmp/race.gif /tmp/race_out.gif
+
+  fuzz:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install clang with the fuzzer runtime
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y cmake build-essential clang
+          # the fuzzer runtime lives in a versioned package that clang does not always pull
+          echo 'extern "C" int LLVMFuzzerTestOneInput(const unsigned char*, unsigned long){return 0;}' > /tmp/probe.cpp
+          if ! clang++ -fsanitize=fuzzer /tmp/probe.cpp -o /tmp/probe 2>/dev/null; then
+            sudo apt-get install -y "libclang-rt-$(clang -dumpversion | cut -d. -f1)-dev"
+            clang++ -fsanitize=fuzzer /tmp/probe.cpp -o /tmp/probe
+          fi
+
+      - name: Build the fuzz targets
+        run: |
+          cmake -S . -B build-fuzz -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+                -DGIFOUT_BUILD_FUZZERS=ON \
+                -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-sanitize-recover=all"
+          cmake --build build-fuzz -j$(nproc)
+        env:
+          CC: clang
+          CXX: clang++
+
+      # a minute each: this is a regression net, not a fuzzing campaign. a real
+      # campaign runs for hours and keeps its corpus between runs.
+      - name: Fuzz the encoder round trip
+        run: |
+          mkdir -p /tmp/rt
+          ./build-fuzz/fuzz_roundtrip -max_total_time=60 -max_len=8192 -rss_limit_mb=4096 /tmp/rt
+
+      - name: Fuzz the reader and the pipeline
+        run: |
+          mkdir -p /tmp/rd
+          ./build-fuzz/fuzz_reader -max_total_time=60 -max_len=65536 -rss_limit_mb=4096 \
+              /tmp/rd fuzz/seeds
+
+      - name: Upload any crash found
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: fuzz-crashes
+          path: |
+            crash-*
+            oom-*
+            timeout-*
+          if-no-files-found: ignore

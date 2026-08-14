@@ -78,6 +78,10 @@ public:
         lift_frames();
         choose_disposals();
         build_frames();
+        // the lifted originals are only needed while the canvas is being walked, and
+        // holding them alongside the variants is what makes the peak so high
+        lifted_.clear();
+        lifted_.shrink_to_fit();
         if (options_.drop_redundant_frames) drop_redundant();
         plain_index_.resize(stream_.frames.size());
         transparent_index_.resize(stream_.frames.size());
@@ -509,10 +513,14 @@ private:
 
     template <typename Map>
     void map_variants(std::size_t i, uint8_t transparent_slot, Map to_index) {
-        auto convert = [&](const std::vector<uint16_t>& src, std::vector<uint8_t>& dst) {
+        // each variant is freed as soon as it has been mapped to palette indices, so
+        // the wide and the narrow copy of the same frame never both sit in memory
+        auto convert = [&](std::vector<uint16_t>& src, std::vector<uint8_t>& dst) {
             dst.resize(src.size());
             for (std::size_t p = 0; p < src.size(); ++p)
                 dst[p] = src[p] == kTransparent ? transparent_slot : to_index(src[p]);
+            src.clear();
+            src.shrink_to_fit();
         };
         convert(new_pixels_[i], plain_index_[i]);
         if (!transparent_pixels_[i].empty()) convert(transparent_pixels_[i], transparent_index_[i]);
@@ -529,6 +537,7 @@ private:
             if (transparent_index_[i].empty() && greedy_index_[i].empty() &&
                 lone_index_[i].empty()) {
                 f.pixels = std::move(plain_index_[i]);
+                plain_index_[i].shrink_to_fit();
                 f.pixels_complete = true;
                 continue;
             }
@@ -548,6 +557,11 @@ private:
                 }
             }
             f.pixels = std::move(*best);
+            for (std::vector<uint8_t>* other :
+                 {&plain_index_[i], &transparent_index_[i], &greedy_index_[i], &lone_index_[i]}) {
+                other->clear();
+                other->shrink_to_fit();
+            }
             if (transparent_won) {
                 stats_.transparency_used = true;
             } else if (!frame_needs_transparency_[i]) {

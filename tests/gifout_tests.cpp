@@ -370,7 +370,50 @@ void test_level_l1_refuses_to_restructure() {
 
 }  // namespace
 
-int main() {
+// the fuzzers want a few real gifs to start from, and the test fixtures already
+// cover the structural corners, so they double as the seed corpus
+int write_seeds(const std::string& directory) {
+    using namespace gifout;
+    std::vector<std::pair<std::string, Stream>> seeds;
+
+    auto plain = make_frame(24, 18, [](uint16_t x, uint16_t y) { return static_cast<uint8_t>((x + y) % 8); });
+    seeds.emplace_back("plain", make_stream({plain}, 8));
+
+    auto a = make_frame(20, 20, [](uint16_t x, uint16_t) { return static_cast<uint8_t>(x % 4); });
+    a.delay = 5;
+    a.has_gce = true;
+    auto b = make_frame(20, 20, [](uint16_t, uint16_t y) { return static_cast<uint8_t>(y % 4); });
+    b.delay = 5;
+    b.has_gce = true;
+    b.transparent = 1;
+    b.disposal = Disposal::Background;
+    Stream animated = make_stream({a, b}, 4);
+    animated.loopcount = 0;
+    seeds.emplace_back("animated", animated);
+
+    auto local = make_frame(16, 16, [](uint16_t x, uint16_t y) { return static_cast<uint8_t>((x * y) % 4); });
+    local.local = gray_map(4);
+    local.interlaced = true;
+    Stream with_local = make_stream({local}, 4);
+    Extension comment;
+    comment.label = 0xFE;
+    comment.blocks.push_back({'s', 'e', 'e', 'd'});
+    with_local.frames[0].extensions.push_back(comment);
+    seeds.emplace_back("local_interlaced_comment", with_local);
+
+    for (auto& [name, stream] : seeds) {
+        for (auto& f : stream.frames) encode_frame(f, effective_palette_size(f, stream));
+        if (!write_gif_file(stream, directory + "/" + name + ".gif")) {
+            std::printf("cannot write seed %s\n", name.c_str());
+            return 1;
+        }
+    }
+    std::printf("wrote %zu seeds to %s\n", seeds.size(), directory.c_str());
+    return 0;
+}
+
+int main(int argc, char** argv) {
+    if (argc == 3 && std::string(argv[1]) == "--write-seeds") return write_seeds(argv[2]);
     const std::vector<std::pair<const char*, void (*)()>> tests{
         {"lzw round trip", test_lzw_round_trip},
         {"search", test_search_matches_and_never_loses},

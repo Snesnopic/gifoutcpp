@@ -73,6 +73,17 @@ if(GIFOUT_BUILD_TESTS)
     add_test(NAME gifout_tests COMMAND gifout_tests)
 endif()
 
+# libfuzzer targets; needs a clang that ships the runtime
+option(GIFOUT_BUILD_FUZZERS "Build the libFuzzer targets" OFF)
+if(GIFOUT_BUILD_FUZZERS)
+    foreach(target fuzz_reader fuzz_roundtrip)
+        add_executable(${target} fuzz/${target}.cpp)
+        target_link_libraries(${target} PRIVATE gifout_core)
+        target_compile_options(${target} PRIVATE -fsanitize=fuzzer)
+        target_link_options(${target} PRIVATE -fsanitize=fuzzer)
+    endforeach()
+endif()
+
 if(GIFOUT_BUILD_BENCH)
     add_subdirectory(bench)
 endif()
