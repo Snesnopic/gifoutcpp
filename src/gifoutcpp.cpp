@@ -2,14 +2,21 @@
 
 #include <cstdio>
 
+#include "gif_parallel.hpp"
+
 namespace gifout {
 namespace {
 
 void encode_frames(Stream& stream, const Options& options) {
-    for (auto& frame : stream.frames) {
+    // the searches run their own threads inside a frame, so only the plain path is spread
+    // over frames here; either way each frame writes only its own bytes
+    const unsigned threads =
+        options.search_restarts || options.search_parse ? 1u : resolve_threads(options.search.threads);
+    parallel_for(stream.frames.size(), threads, [&](std::size_t index, unsigned) {
+        Frame& frame = stream.frames[index];
         // a frame the decoder had to repair no longer matches its own lzw data, so
         // re-encoding it would change the image rather than just its encoding
-        if (!frame.pixels_complete) continue;
+        if (!frame.pixels_complete) return;
         const unsigned palette = effective_palette_size(frame, stream);
         if (options.search_parse) {
             auto beam = encode_lzw_beam(frame.pixels, frame.width, frame.height, frame.interlaced,
@@ -18,12 +25,12 @@ void encode_frames(Stream& stream, const Options& options) {
                 frame.lzw = std::move(beam.encoded.lzw);
                 frame.lzw_min_code_size = beam.encoded.min_code_size;
                 frame.block_sizes.clear();
-                continue;
+                return;
             }
         }
         if (!options.search_restarts) {
             encode_frame(frame, palette, options.encode);
-            continue;
+            return;
         }
         auto found = encode_lzw_search(frame.pixels, frame.width, frame.height, frame.interlaced,
                                        palette, options.encode, options.search);
@@ -35,7 +42,7 @@ void encode_frames(Stream& stream, const Options& options) {
         frame.lzw = (found.searched && found.encoded.lzw.size() < greedy.lzw.size())
                         ? std::move(found.encoded.lzw)
                         : std::move(greedy.lzw);
-    }
+    });
 }
 
 }  // namespace
@@ -74,6 +81,7 @@ Result recompress_stream(Stream& stream, std::vector<uint8_t>& output, const Opt
         OptimizeOptions optimize_options;
         optimize_options.level = options.level;
         optimize_options.deinterlace = !options.keep_interlace;
+        optimize_options.threads = options.search.threads;
         const auto stats = optimize(stream, optimize_options);
         if (!stats.skipped.empty())
             result.restructure_note = stats.skipped;

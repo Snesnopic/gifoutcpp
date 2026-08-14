@@ -54,9 +54,9 @@ Machine: Apple M2 Pro, 10 cores, Release.
 | `--copy` (container rewrite only) | 31 622 906 B | −0.01 % | 0.1 s |
 | default (re-encode LZW) | 30 798 920 B | −2.62 % | 1.6 s |
 | `gifsicle -O3`, for reference | 29 082 967 B | −8.04 % | 4.8 s |
-| `-O --strip` | 29 024 849 B | **−8.22 %** | 7.3 s |
+| `-O --strip` | 29 024 849 B | **−8.22 %** | 6.8 s, 3.8 s at `-j 0` |
 | `-O --strip --lookahead 4` | 28 989 881 B | **−8.34 %** | 29.7 s |
-| `-O -s --strip -j 0` | 27 871 612 B | **−11.87 %** | 2.1 min |
+| `-O -s --strip -j 0` | 27 871 612 B | **−11.87 %** | 1.8 min |
 
 On the 29-file subset where the established pipeline can finish at all, gifsicle piped
 into flexiGIF gives −11.43 % and spends about 737 s inside flexiGIF; `-O -s` gives
@@ -105,7 +105,8 @@ gifoutcpp [options] <input.gif> [output.gif]
   -s, --search        search for the best dictionary restart points, much slower
       --alignment N   how far apart restart points may sit, in pixels (default 160)
       --max-tokens N  how far a block is explored (default 10000)
-  -j, --threads N     threads for the search, 0 means as many as the machine has
+  -j, --threads N     threads for the search and for -O, 0 means as many as the
+                      machine has
                       (default 1; the output is identical whatever you pick)
       --strip         drop comments and application metadata, keep the loop block
   -x, --exhaustive N  search the parse itself with a beam N wide
@@ -257,6 +258,16 @@ of the cost table the chunk is still computing, so they are independent and only
 small fold at the end is sequential. Each worker gets its own dictionary, no locks are
 involved, and `-j 1` runs a plain loop with no threads created at all. CI checks that
 `-j 1` and `-j 0` produce identical bytes.
+
+`-j` also spreads `-O`, where most of the time goes into encoding the transparency
+candidates in order to compare them. The unit of work is the pair (frame, candidate)
+rather than the frame, because half the corpus is single frame files that would
+otherwise stay entirely sequential. Threads only measure; the winner is picked
+afterwards from the sizes and a fixed candidate order, so the answer cannot depend on
+how the work was split. Measured on the corpus, `-O --strip` goes from **6.8 s to
+3.8 s** on 10 cores, **1.8x**, up to **2.7x** on animated files, with byte-identical
+output on all 51. What is left is the canvas simulation, which is sequential by nature:
+the state a frame is drawn onto is the one the frame before it left behind.
 
 **A variant is a bitmask, not a second copy.** The four candidate images a frame is
 built as differ only by which pixels go transparent, so three of them are one bit per

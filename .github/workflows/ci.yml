@@ -129,14 +129,16 @@ jobs:
         run: |
           fail=0
           for f in /tmp/fx/*.gif; do
-            ./build/gifoutcpp -q -O -s -j 1 "$f" /tmp/one.gif || { echo "FAIL $f"; fail=1; continue; }
-            ./build/gifoutcpp -q -O -s -j 0 "$f" /tmp/many.gif || { echo "FAIL $f"; fail=1; continue; }
-            if cmp -s /tmp/one.gif /tmp/many.gif; then
-              echo "ok  $(basename "$f")"
-            else
-              echo "FAIL threads changed the output: $(basename "$f")"
-              fail=1
-            fi
+            for mode in "-O" "-O -s"; do
+              ./build/gifoutcpp -q $mode -j 1 "$f" /tmp/one.gif || { echo "FAIL $f"; fail=1; continue; }
+              ./build/gifoutcpp -q $mode -j 0 "$f" /tmp/many.gif || { echo "FAIL $f"; fail=1; continue; }
+              if cmp -s /tmp/one.gif /tmp/many.gif; then
+                echo "ok  $mode $(basename "$f")"
+              else
+                echo "FAIL threads changed the output: $mode $(basename "$f")"
+                fail=1
+              fi
+            done
           done
           exit $fail
 

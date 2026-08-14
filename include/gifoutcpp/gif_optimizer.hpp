@@ -38,6 +38,11 @@ struct OptimizeOptions {
     bool drop_redundant_frames = true;     ///< Drop frames that paint nothing, merging their delay.
     bool prune_palettes = true;            ///< Rebuild palettes around the colours really used.
     bool deinterlace = false;              ///< Store rows in natural order rather than interlaced.
+
+    /// Threads for the per frame work, which is choosing between the transparency
+    /// variants by encoding them. Frames are independent by then and the choice is a
+    /// size comparison, so the result does not depend on how the work was split.
+    unsigned threads = 1;
 };
 
 /** @brief What the optimizer did, or why it did nothing. */

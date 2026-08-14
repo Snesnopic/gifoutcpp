@@ -1,8 +1,10 @@
 #include "gifoutcpp/gif_optimizer.hpp"
 
 #include <algorithm>
+#include <array>
 #include <unordered_map>
 
+#include "gif_parallel.hpp"
 #include "gifoutcpp/gif_encoder.hpp"
 
 namespace gifout {
@@ -67,7 +69,8 @@ Rect union_of(const Rect& a, const Rect& b) {
 
 class Optimizer {
 public:
-    Optimizer(Stream& stream, const OptimizeOptions& options) : stream_(stream), options_(options) {}
+    Optimizer(Stream& stream, const OptimizeOptions& options)
+        : stream_(stream), options_(options), threads_(resolve_threads(options.threads)) {}
 
     OptimizeStats run() {
         stats_.frames_before = stream_.frames.size();
@@ -519,12 +522,13 @@ private:
         stream_.background =
             background_id_ == kTransparent ? 0 : to_index[background_id_];
 
-        for (std::size_t i = 0; i < new_pixels_.size(); ++i) {
+        // to_index is read only from here on and every frame writes only its own slots
+        parallel_for(new_pixels_.size(), threads_, [&](std::size_t i, unsigned) {
             stream_.frames[i].local.reset();
             const auto slot = static_cast<uint8_t>(std::max(0, transparent_index[i]));
             map_variants(i, slot, [&](uint16_t v) { return to_index[v]; });
             if (transparent_index[i] >= 0) stream_.frames[i].transparent = transparent_index[i];
-        }
+        });
         return true;
     }
 
@@ -587,43 +591,63 @@ private:
     // the encoder is the only honest judge of whether transparency paid off, which is
     // why the greedy one had to exist before this optimizer
     void choose_variants() {
+        std::array<std::vector<std::vector<uint8_t>>*, 4> variants = {
+            &plain_index_, &transparent_index_, &greedy_index_, &lone_index_};
+        // spreading over frames alone leaves a single frame file entirely serial, and half
+        // the corpus is single frame; the candidates of one frame are independent too, so
+        // the unit of work is the pair and not the frame
+        struct Job {
+            std::size_t frame;
+            unsigned slot;
+        };
+        std::vector<Job> jobs;
         for (std::size_t i = 0; i < stream_.frames.size(); ++i) {
-            Frame& f = stream_.frames[i];
-            const unsigned palette = effective_palette_size(f, stream_);
             if (transparent_index_[i].empty() && greedy_index_[i].empty() &&
                 lone_index_[i].empty()) {
-                f.pixels = std::move(plain_index_[i]);
+                stream_.frames[i].pixels = std::move(plain_index_[i]);
                 plain_index_[i].shrink_to_fit();
-                f.pixels_complete = true;
+                stream_.frames[i].pixels_complete = true;
                 continue;
             }
-            std::vector<uint8_t>* best = &plain_index_[i];
-            std::size_t best_size =
-                encode_lzw(plain_index_[i], f.width, f.height, f.interlaced, palette).lzw.size();
-            bool transparent_won = false;
-            for (std::vector<uint8_t>* candidate :
-                 {&transparent_index_[i], &greedy_index_[i], &lone_index_[i]}) {
-                if (candidate->empty()) continue;
-                const std::size_t size =
-                    encode_lzw(*candidate, f.width, f.height, f.interlaced, palette).lzw.size();
-                if (size < best_size) {
-                    best_size = size;
-                    best = candidate;
-                    transparent_won = true;
+            // slot 0 always runs, empty or not, because it is the baseline every other
+            // candidate has to beat
+            jobs.push_back({i, 0u});
+            for (unsigned slot = 1; slot < 4; ++slot)
+                if (!(*variants[slot])[i].empty()) jobs.push_back({i, slot});
+        }
+
+        std::vector<std::size_t> sizes(jobs.size());
+        parallel_for(jobs.size(), threads_, [&](std::size_t j, unsigned) {
+            const Frame& f = stream_.frames[jobs[j].frame];
+            sizes[j] = encode_lzw((*variants[jobs[j].slot])[jobs[j].frame], f.width, f.height,
+                                  f.interlaced, effective_palette_size(f, stream_))
+                           .lzw.size();
+        });
+
+        // the winner is picked here, off the threads, so it depends on the sizes and on
+        // the fixed slot order rather than on how the work was split
+        for (std::size_t j = 0; j < jobs.size();) {
+            const std::size_t i = jobs[j].frame;
+            unsigned best = jobs[j].slot;
+            std::size_t best_size = sizes[j];
+            std::size_t next = j + 1;
+            for (; next < jobs.size() && jobs[next].frame == i; ++next)
+                if (sizes[next] < best_size) {
+                    best_size = sizes[next];
+                    best = jobs[next].slot;
                 }
+            Frame& f = stream_.frames[i];
+            f.pixels = std::move((*variants[best])[i]);
+            for (auto* variant : variants) {
+                (*variant)[i].clear();
+                (*variant)[i].shrink_to_fit();
             }
-            f.pixels = std::move(*best);
-            for (std::vector<uint8_t>* other :
-                 {&plain_index_[i], &transparent_index_[i], &greedy_index_[i], &lone_index_[i]}) {
-                other->clear();
-                other->shrink_to_fit();
-            }
-            if (transparent_won) {
+            if (best != 0)
                 stats_.transparency_used = true;
-            } else if (!frame_needs_transparency_[i]) {
+            else if (!frame_needs_transparency_[i])
                 f.transparent = -1;
-            }
             f.pixels_complete = true;
+            j = next;
         }
     }
 
@@ -655,6 +679,7 @@ private:
 
     Stream& stream_;
     OptimizeOptions options_;
+    unsigned threads_ = 1;
     OptimizeStats stats_;
     ColorSpace space_;
     unsigned width_ = 0, height_ = 0;

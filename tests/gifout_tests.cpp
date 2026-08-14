@@ -391,6 +391,41 @@ void test_optimizer_preserves_the_animation() {
         check(f.pixels.size() == f.pixel_count(), "optimized frame has its pixels");
 }
 
+void test_optimizer_threads_do_not_change_the_answer() {
+    // enough frames and enough colours that every candidate is really built and every
+    // worker gets something to do
+    std::vector<Frame> frames;
+    for (int i = 0; i < 12; ++i) {
+        auto f = make_frame(80, 60, [&](uint16_t x, uint16_t y) -> uint8_t {
+            const bool inside = x >= i * 5 && x < i * 5 + 20 && y >= 10 && y < 40;
+            return inside ? static_cast<uint8_t>(5 + (x + y) % 3)
+                          : static_cast<uint8_t>((x / 8 + y / 8) % 4);
+        });
+        f.delay = 7;
+        f.has_gce = true;
+        frames.push_back(std::move(f));
+    }
+    const Stream original = make_stream(frames);
+
+    OptimizeOptions serial;
+    Stream one = original;
+    const auto stats_one = optimize(one, serial);
+
+    OptimizeOptions parallel;
+    parallel.threads = 8;
+    Stream many = original;
+    const auto stats_many = optimize(many, parallel);
+
+    check(stats_one.skipped.empty() && stats_many.skipped.empty(), "both runs optimized");
+    check(stats_one.frames_dropped == stats_many.frames_dropped, "same frames dropped");
+    check(stats_one.transparency_used == stats_many.transparency_used, "same transparency verdict");
+    check(one.frames.size() == many.frames.size(), "same frame count");
+
+    const auto bytes_one = write_gif(one);
+    const auto bytes_many = write_gif(many);
+    check(bytes_one == bytes_many, "threads produce the same bytes");
+}
+
 void test_unoptimize_expands_frames() {
     std::vector<Frame> frames;
     auto base = make_frame(48, 48, [](uint16_t x, uint16_t y) { return static_cast<uint8_t>((x / 8 + y / 8) % 4); });
@@ -533,6 +568,8 @@ int main(int argc, char** argv) {
         {"container round trip", test_container_round_trip},
         {"reader survives damage", test_reader_survives_damage},
         {"optimizer preserves the animation", test_optimizer_preserves_the_animation},
+        {"optimizer threads do not change the answer",
+         test_optimizer_threads_do_not_change_the_answer},
         {"unoptimize", test_unoptimize_expands_frames},
         {"level l1", test_level_l1_refuses_to_restructure},
         {"public api", test_public_api},
