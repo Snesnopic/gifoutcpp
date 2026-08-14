@@ -217,11 +217,20 @@ stream, its pixels no longer describe the same image the file carries, so the
 original bytes are copied through instead. Recompressing them would silently change
 the picture.
 
+**The palette is ordered by what each frame paints.** A frame's code size follows its
+highest index, so the order of the global colour table decides how many bits every
+frame pays. Ordering it by the colours of the variant a frame is likely to keep, and
+serving the frames with the fewest colours first, is what closed the last measurable
+gap on the longest animation in the corpus.
+
 **The search prunes only where it can prove it is safe.** Accumulated bits never go
 down and the cost of any remaining tail is non-negative, so once a block alone is
 worse than the best complete path already found, no longer block can win and the walk
-stops. It is worth about 7 %, far less than the parallelism, and it cannot change the
-answer by construction.
+stops. It is worth about 7 %, far less than the parallelism, and it cannot change the answer
+by construction. A tighter bound was measured rather than attempted: instrumenting
+the walk shows the winning end sits at 72.6 % of how far it goes, so a perfect oracle
+would save at most a quarter of the walk, and less in wall clock because the pruned
+tail is the part where the dictionary is already warm.
 
 **Parallelism is an optimization, never a different answer.** The search splits a
 frame into chunks of restart positions; the forward walks inside a chunk never read
