@@ -24,7 +24,9 @@ struct BlockEncoder {
     int clear_code() const { return 1 << min_code_bits; }
 
     // walks from `from`, reporting the running cost at every aligned position through
-    // `report(position, bits_including_terminator)`. stops at max_tokens.
+    // `report(position, bits_including_terminator)`. report returns false to give up on
+    // this start, which is safe exactly when the accumulated bits already beat anything
+    // the rest of the walk could reach. stops at max_tokens too.
     template <typename Report>
     void walk(std::size_t from, unsigned max_tokens, unsigned alignment, Report report) const {
         dict.clear();
@@ -55,7 +57,7 @@ struct BlockEncoder {
             // a block may also end inside this token: every prefix of a match is itself
             // a code, so the last token just comes out shorter
             for (std::size_t q = (token_start / alignment + 1) * alignment; q < pos; q += alignment)
-                report(q, bits + 2ull * static_cast<unsigned>(code_bits));
+                if (!report(q, bits + 2ull * static_cast<unsigned>(code_bits))) return;
 
             bits += static_cast<unsigned>(code_bits);
             ++tokens;
@@ -67,7 +69,7 @@ struct BlockEncoder {
 
             // a restart here would cost one more code, of the width in force right now
             if (pos == end_pos || pos % alignment == 0)
-                report(pos, bits + static_cast<unsigned>(code_bits));
+                if (!report(pos, bits + static_cast<unsigned>(code_bits))) return;
         }
     }
 
@@ -136,7 +138,7 @@ SearchResult encode_lzw_search(std::span<const uint8_t> pixels, uint16_t width, 
     // a chunk's walks are independent and the only sequential part is folding the few
     // candidates that land inside it. the answer is the same whatever the thread count.
     const unsigned threads = resolve_threads(search_options.threads);
-    constexpr std::size_t kChunk = 256;
+    constexpr std::size_t kChunk = 64;
     struct Candidate {
         std::size_t pos;
         unsigned long long bits;
@@ -164,15 +166,20 @@ SearchResult encode_lzw_search(std::span<const uint8_t> pixels, uint16_t width, 
                            const std::size_t slot = slot_of(pos);
                            if (slot >= high) {
                                const unsigned long long tail = best[slot];
-                               if (tail == kNoPath) return;
-                               const unsigned long long total = bits + tail;
-                               if (total < far_best[idx]) {
-                                   far_best[idx] = total;
-                                   far_end[idx] = pos;
+                               if (tail != kNoPath) {
+                                   const unsigned long long total = bits + tail;
+                                   if (total < far_best[idx]) {
+                                       far_best[idx] = total;
+                                       far_end[idx] = pos;
+                                   }
                                }
                            } else {
                                inside[idx].push_back({pos, bits});
                            }
+                           // the tail of any longer block costs at least nothing, so once
+                           // the block alone is worse than the best complete path found,
+                           // no later end can win and the walk is over
+                           return bits < far_best[idx];
                        });
         });
 

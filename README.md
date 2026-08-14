@@ -59,7 +59,7 @@ What is verified today, on a corpus of 51 real GIFs from Wikimedia Commons
 * `-O -s` together give **−12.03 % in 16 s** on that subset, against **−11.43 %**
   for gifsicle piped into flexiGIF, which spends about 737 s in flexiGIF alone.
 * On the **whole** corpus, which the established pipeline cannot finish at all,
-  `-O -s` gives **−11.42 %**: 5.8 minutes on one thread, **1.0 minute on ten**,
+  `-O -s` gives **−11.57 %** in **1.05 minutes on ten threads** (5.8 on one),
   byte-identical output either way, all 51 rendering-identical.
 * With `-O` the corpus goes to **−7.87 % in 6.4 s**, against **−8.04 % in 4.8 s**
   for `gifsicle -O3`: 0.19 % behind, smaller on 5 files, identical on 20.
@@ -157,6 +157,12 @@ was found, and the same latent bug was in the greedy encoder.
 stream, its pixels no longer describe the same image the file carries, so the
 original bytes are copied through instead. Recompressing them would silently change
 the picture.
+
+**The search prunes only where it can prove it is safe.** Accumulated bits never go
+down and the cost of any remaining tail is non-negative, so once a block alone is
+worse than the best complete path already found, no longer block can win and the walk
+stops. It is worth about 7 %, far less than the parallelism, and it cannot change the
+answer by construction.
 
 **Parallelism is an optimization, never a different answer.** The search splits a
 frame into chunks of restart positions; the forward walks inside a chunk never read
