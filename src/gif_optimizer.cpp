@@ -235,12 +235,12 @@ private:
         new_pixels_.reserve(stream_.frames.size());
         frame_needs_transparency_.clear();
         paints_nothing_.clear();
-        transparent_pixels_.clear();
-        transparent_pixels_.reserve(stream_.frames.size());
-        greedy_pixels_.clear();
-        greedy_pixels_.reserve(stream_.frames.size());
-        lone_pixels_.clear();
-        lone_pixels_.reserve(stream_.frames.size());
+        transparent_masks_.clear();
+        transparent_masks_.reserve(stream_.frames.size());
+        greedy_masks_.clear();
+        greedy_masks_.reserve(stream_.frames.size());
+        lone_masks_.clear();
+        lone_masks_.reserve(stream_.frames.size());
 
         for (std::size_t i = 0; i < stream_.frames.size(); ++i) {
             Frame frame = stream_.frames[i];
@@ -275,51 +275,55 @@ private:
 
             // gifsicle's rule, and the subtlety is the second condition: a matching run
             // only becomes transparent if its colour differs from what was just emitted,
-            // otherwise replacing it would break a longer run of the same index
-            std::vector<uint16_t> transparent_variant;
-            // and the same walk builds the variant that also swallows lone matching
-            // pixels, which is the extra try gifsicle only makes at -O3
-            std::vector<uint16_t> lone_variant;
+            // otherwise replacing it would break a longer run of the same index.
+            // a variant differs from the base image only by which pixels go transparent,
+            // so it is a bitmask rather than a second copy of the frame
+            std::vector<bool> transparent_mask;
+            std::vector<bool> lone_mask;
             if (options_.use_transparency && any_same) {
-                transparent_variant.resize(count);
-                std::size_t begin_same = 0, copied_to = 0;
+                transparent_mask.assign(count, false);
+                std::size_t begin_same = 0;
                 unsigned nsame = 0;
+                bool lone_seen = false;
+                std::vector<std::pair<std::size_t, std::size_t>> lone_runs;
                 for (std::size_t p = 0; p < count; ++p) {
                     if (!same[p] && pixels[p] != kTransparent) {
-                        if (nsame == 1 && p > 0 && transparent_variant[p - 1] != kTransparent) {
-                            if (lone_variant.empty()) lone_variant.assign(count, kTransparent);
-                            std::copy(transparent_variant.begin() + static_cast<std::ptrdiff_t>(copied_to),
-                                      transparent_variant.begin() + static_cast<std::ptrdiff_t>(begin_same),
-                                      lone_variant.begin() + static_cast<std::ptrdiff_t>(copied_to));
-                            std::fill(lone_variant.begin() + static_cast<std::ptrdiff_t>(begin_same),
-                                      lone_variant.begin() + static_cast<std::ptrdiff_t>(p), kTransparent);
-                            copied_to = p;
+                        // a run of exactly one matching pixel: gifsicle only swallows it
+                        // in the extra variant it tries at -O3
+                        if (nsame == 1 && p > 0 && !transparent_mask[p - 1]) {
+                            lone_runs.emplace_back(begin_same, p);
+                            lone_seen = true;
                         }
                         nsame = 0;
                     } else if (nsame == 0) {
                         begin_same = p;
                         nsame = 1;
-                    } else if (nsame == 1 && (p == 0 || pixels[p] != transparent_variant[p - 1])) {
-                        std::fill(transparent_variant.begin() + static_cast<std::ptrdiff_t>(begin_same),
-                                  transparent_variant.begin() + static_cast<std::ptrdiff_t>(p),
-                                  kTransparent);
-                        nsame = 2;
+                    } else if (nsame == 1) {
+                        const uint16_t previous =
+                            (p > 0 && transparent_mask[p - 1]) ? kTransparent : pixels[p - 1];
+                        if (p == 0 || pixels[p] != previous) {
+                            for (std::size_t q = begin_same; q < p; ++q) transparent_mask[q] = true;
+                            nsame = 2;
+                        }
                     }
-                    transparent_variant[p] = nsame > 1 ? kTransparent : pixels[p];
+                    if (nsame > 1) transparent_mask[p] = true;
                 }
-                if (!lone_variant.empty())
-                    std::copy(transparent_variant.begin() + static_cast<std::ptrdiff_t>(copied_to),
-                              transparent_variant.end(),
-                              lone_variant.begin() + static_cast<std::ptrdiff_t>(copied_to));
-                if (transparent_variant == pixels) transparent_variant.clear();
-                if (lone_variant == pixels || lone_variant == transparent_variant) lone_variant.clear();
+                if (std::find(transparent_mask.begin(), transparent_mask.end(), true) ==
+                    transparent_mask.end())
+                    transparent_mask.clear();
+                if (lone_seen) {
+                    lone_mask = transparent_mask;
+                    if (lone_mask.empty()) lone_mask.assign(count, false);
+                    for (const auto& [from, to] : lone_runs)
+                        for (std::size_t q = from; q < to; ++q) lone_mask[q] = true;
+                    if (lone_mask == transparent_mask) lone_mask.clear();
+                }
             }
 
-            // the rule above can lose on frames that are mostly unchanged, so keep the
-            // blunt variant too and let the encoder decide between the three
-            std::vector<uint16_t> greedy_variant;
+            // the blunt variant: every matching run of two or more, whatever the colour
+            std::vector<bool> greedy_mask;
             if (options_.use_transparency && any_same) {
-                greedy_variant = pixels;
+                greedy_mask.assign(count, false);
                 std::size_t run_start = 0, run = 0;
                 for (std::size_t p = 0; p <= count; ++p) {
                     if (p < count && same[p]) {
@@ -328,13 +332,12 @@ private:
                         continue;
                     }
                     if (run >= 2)
-                        std::fill(greedy_variant.begin() + static_cast<std::ptrdiff_t>(run_start),
-                                  greedy_variant.begin() + static_cast<std::ptrdiff_t>(run_start + run),
-                                  kTransparent);
+                        for (std::size_t q = run_start; q < run_start + run; ++q) greedy_mask[q] = true;
                     run = 0;
                 }
-                if (greedy_variant == pixels || greedy_variant == transparent_variant)
-                    greedy_variant.clear();
+                if (std::find(greedy_mask.begin(), greedy_mask.end(), true) == greedy_mask.end() ||
+                    greedy_mask == transparent_mask)
+                    greedy_mask.clear();
             }
 
             frame.left = static_cast<uint16_t>(rect.left);
@@ -349,8 +352,8 @@ private:
             frame.block_sizes.clear();
             frame.local.reset();
             frame.transparent =
-                (wants_transparency || !transparent_variant.empty() || !greedy_variant.empty() ||
-                 !lone_variant.empty())
+                (wants_transparency || !transparent_mask.empty() || !greedy_mask.empty() ||
+                 !lone_mask.empty())
                     ? 0
                     : -1;  // index assigned later
             frame_needs_transparency_.push_back(wants_transparency ? 1 : 0);
@@ -366,9 +369,9 @@ private:
 
             out.push_back(std::move(frame));
             new_pixels_.push_back(std::move(pixels));
-            transparent_pixels_.push_back(std::move(transparent_variant));
-            greedy_pixels_.push_back(std::move(greedy_variant));
-            lone_pixels_.push_back(std::move(lone_variant));
+            transparent_masks_.push_back(std::move(transparent_mask));
+            greedy_masks_.push_back(std::move(greedy_mask));
+            lone_masks_.push_back(std::move(lone_mask));
         }
         stream_.frames = std::move(out);
     }
@@ -387,9 +390,9 @@ private:
             stream_.frames[i - 1].has_gce = true;
             stream_.frames.erase(stream_.frames.begin() + static_cast<std::ptrdiff_t>(i));
             new_pixels_.erase(new_pixels_.begin() + static_cast<std::ptrdiff_t>(i));
-            transparent_pixels_.erase(transparent_pixels_.begin() + static_cast<std::ptrdiff_t>(i));
-            greedy_pixels_.erase(greedy_pixels_.begin() + static_cast<std::ptrdiff_t>(i));
-            lone_pixels_.erase(lone_pixels_.begin() + static_cast<std::ptrdiff_t>(i));
+            transparent_masks_.erase(transparent_masks_.begin() + static_cast<std::ptrdiff_t>(i));
+            greedy_masks_.erase(greedy_masks_.begin() + static_cast<std::ptrdiff_t>(i));
+            lone_masks_.erase(lone_masks_.begin() + static_cast<std::ptrdiff_t>(i));
             frame_needs_transparency_.erase(frame_needs_transparency_.begin() +
                                             static_cast<std::ptrdiff_t>(i));
             paints_nothing_.erase(paints_nothing_.begin() + static_cast<std::ptrdiff_t>(i));
@@ -460,8 +463,8 @@ private:
                 // something through: only its own palette can help
                 if (frame_needs_transparency_[i]) return false;
                 stream_.frames[i].transparent = -1;
-                transparent_pixels_[i].clear();
-                greedy_pixels_[i].clear();
+                transparent_masks_[i].clear();
+                greedy_masks_[i].clear();
                 continue;
             }
             transparent_index[i] = free_index;
@@ -519,17 +522,21 @@ private:
     void map_variants(std::size_t i, uint8_t transparent_slot, Map to_index) {
         // each variant is freed as soon as it has been mapped to palette indices, so
         // the wide and the narrow copy of the same frame never both sit in memory
-        auto convert = [&](std::vector<uint16_t>& src, std::vector<uint8_t>& dst) {
-            dst.resize(src.size());
-            for (std::size_t p = 0; p < src.size(); ++p)
-                dst[p] = src[p] == kTransparent ? transparent_slot : to_index(src[p]);
-            src.clear();
-            src.shrink_to_fit();
+        const auto& base = new_pixels_[i];
+        auto apply = [&](const std::vector<bool>& mask, std::vector<uint8_t>& dst) {
+            dst.resize(base.size());
+            for (std::size_t p = 0; p < base.size(); ++p)
+                dst[p] = (base[p] == kTransparent || (!mask.empty() && mask[p]))
+                             ? transparent_slot
+                             : to_index(base[p]);
         };
-        convert(new_pixels_[i], plain_index_[i]);
-        if (!transparent_pixels_[i].empty()) convert(transparent_pixels_[i], transparent_index_[i]);
-        if (!greedy_pixels_[i].empty()) convert(greedy_pixels_[i], greedy_index_[i]);
-        if (!lone_pixels_[i].empty()) convert(lone_pixels_[i], lone_index_[i]);
+        apply({}, plain_index_[i]);
+        if (!transparent_masks_[i].empty()) apply(transparent_masks_[i], transparent_index_[i]);
+        if (!greedy_masks_[i].empty()) apply(greedy_masks_[i], greedy_index_[i]);
+        if (!lone_masks_[i].empty()) apply(lone_masks_[i], lone_index_[i]);
+        // the base image is not needed once every variant has been mapped
+        new_pixels_[i].clear();
+        new_pixels_[i].shrink_to_fit();
     }
 
     // the encoder is the only honest judge of whether transparency paid off, which is
@@ -609,12 +616,12 @@ private:
     uint16_t background_id_ = kTransparent;
     std::vector<std::vector<uint16_t>> lifted_;
     std::vector<std::vector<uint16_t>> new_pixels_;
-    std::vector<std::vector<uint16_t>> transparent_pixels_;
+    std::vector<std::vector<bool>> transparent_masks_;
     std::vector<std::vector<uint8_t>> plain_index_;
     std::vector<std::vector<uint8_t>> transparent_index_;
-    std::vector<std::vector<uint16_t>> greedy_pixels_;
+    std::vector<std::vector<bool>> greedy_masks_;
     std::vector<std::vector<uint8_t>> greedy_index_;
-    std::vector<std::vector<uint16_t>> lone_pixels_;
+    std::vector<std::vector<bool>> lone_masks_;
     std::vector<std::vector<uint8_t>> lone_index_;
     std::vector<uint8_t> frame_needs_transparency_;
     std::vector<uint8_t> paints_nothing_;
