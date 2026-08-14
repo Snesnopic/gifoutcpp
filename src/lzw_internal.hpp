@@ -9,6 +9,7 @@
 #define GIFOUTCPP_LZW_INTERNAL_HPP
 
 #include <algorithm>
+#include <bit>
 #include <array>
 #include <cstdint>
 #include <span>
@@ -39,7 +40,7 @@ constexpr unsigned kRunInvThresh = (1u << kRunEwmaScale) / 3000;
  */
 class Dictionary {
 public:
-    Dictionary() : key_(kSlots, 0), value_(kSlots, 0), stamp_(kSlots, 0) {}
+    Dictionary() = default;
 
     /** @brief Forgets every entry, in constant time. */
     void clear() {
@@ -88,9 +89,11 @@ private:
 
     static uint32_t hash(uint32_t key) { return (key * 2654435761u >> 13) & (kSlots - 1); }
 
-    std::vector<uint32_t> key_;
-    std::vector<uint16_t> value_;
-    std::vector<uint32_t> stamp_;
+    // sized here rather than in a constructor body: the table is fixed and every lookup
+    // assumes it is already there
+    std::vector<uint32_t> key_ = std::vector<uint32_t>(kSlots, 0);
+    std::vector<uint16_t> value_ = std::vector<uint16_t>(kSlots, 0);
+    std::vector<uint32_t> stamp_ = std::vector<uint32_t>(kSlots, 0);
     uint32_t epoch_ = 1;
 };
 
@@ -212,9 +215,10 @@ inline uint8_t min_code_bits_for(std::span<const uint8_t> pixels, unsigned palet
         }
         ++colors_used;
     }
-    int bits = 2;
-    for (int i = 4; i < colors_used; i *= 2) ++bits;
-    return static_cast<uint8_t>(std::min(bits, 8));
+    // the width that holds the largest index, which is what bit_width answers; gif
+    // forbids a code size below 2 and the dictionary caps it at 8
+    const int bits = colors_used > 1 ? std::bit_width(static_cast<unsigned>(colors_used - 1)) : 1;
+    return static_cast<uint8_t>(std::clamp(bits, 2, 8));
 }
 
 }  // namespace gifout::detail

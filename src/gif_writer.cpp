@@ -1,5 +1,7 @@
 #include "gifoutcpp/gif_writer.hpp"
 
+#include <algorithm>
+#include <bit>
 #include <cstdio>
 
 namespace gifout {
@@ -14,9 +16,11 @@ void put_word(std::vector<uint8_t>& out, uint16_t v) {
 
 // gif stores palettes at a power of two size, so a short map is padded with black
 uint8_t colormap_size_bits(std::size_t entries) {
-    uint8_t bits = 0;
-    while ((2u << bits) < entries && bits < 7) ++bits;
-    return bits;
+    // the packed field stores log2(slots) - 1, and a table always rounds up to a power
+    // of two, so this is the width of the largest index minus one
+    if (entries <= 2) return 0;
+    const int bits = std::bit_width(entries - 1) - 1;
+    return static_cast<uint8_t>(std::clamp(bits, 0, 7));
 }
 
 void put_colormap(std::vector<uint8_t>& out, const Colormap& map) {

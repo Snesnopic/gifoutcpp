@@ -20,17 +20,21 @@ Checks: >
   -readability-convert-member-functions-to-static,
   -readability-uppercase-literal-suffix,
   -misc-use-internal-linkage,
-  -modernize-use-designated-initializers,
   -readability-implicit-bool-conversion,
-  -modernize-macro-to-enum,
   -bugprone-infinite-loop,
-  -misc-const-correctness
+  -misc-const-correctness,
+  -readability-math-missing-parentheses,
+  -bugprone-branch-clone,
+  -performance-enum-size,
+  -readability-avoid-nested-conditional-operator,
+  -bugprone-narrowing-conversions,
+  -readability-simplify-boolean-expr
 WarningsAsErrors: ''
 HeaderFilterRegex: '(include|src)/.*\.(hpp|cpp)$'
 
 # why some checks are off:
 #   trailing-return-type, braces-around-statements, uppercase-literal-suffix,
-#     implicit-bool-conversion, designated-initializers: house style
+#     implicit-bool-conversion: house style
 #   non-private-member-variables: the model types are deliberately plain structs
 #   use-internal-linkage: it flags the public api, whose definitions live in .cpp
 #     files while the declarations sit in include/gifoutcpp
@@ -38,3 +42,8 @@ HeaderFilterRegex: '(include|src)/.*\.(hpp|cpp)$'
 #   easily-swappable-parameters: geometry really does come as (width, height)
 #   const-correctness: it flags variables that are mutated through member calls and
 #     inside lambdas, so every hit here was a false positive
+#   math-missing-parentheses: still fires on expressions that are already parenthesised
+#   branch-clone: an argument parser legitimately repeats `x = stoul(argv[++i])`
+#   enum-size: the enums it flags already have an explicit uint8_t underlying type
+#   narrowing-conversions, simplify-boolean-expr, nested-conditional-operator: every
+#     hit was reviewed and was either wrong or a readability trade we already made

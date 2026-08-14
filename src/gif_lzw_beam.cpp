@@ -90,7 +90,7 @@ std::vector<std::pair<std::size_t, std::size_t>> unwind(const std::shared_ptr<co
 
 std::vector<uint8_t> emit(const PixelOrder& order, uint8_t min_code_bits,
                           const std::vector<std::pair<std::size_t, std::size_t>>& steps,
-                          std::size_t end) {
+                          std::size_t end_pos) {
     BitSink sink;
     Table table;
     table.next_code = (1 << min_code_bits) + 2;
@@ -100,7 +100,8 @@ std::vector<uint8_t> emit(const PixelOrder& order, uint8_t min_code_bits,
         const int code = table.code_for(order, from, length);
         sink.put(static_cast<unsigned>(code), table.code_bits);
         if (table.next_code < kMaxCode) {
-            if (from + length < end) table.insert(code, order.at(from + length), table.next_code);
+            if (from + length < end_pos)
+                table.insert(code, order.at(from + length), table.next_code);
             ++table.next_code;
         }
         if (table.next_code > (1 << table.code_bits) && table.code_bits < kMaxCodeBits)

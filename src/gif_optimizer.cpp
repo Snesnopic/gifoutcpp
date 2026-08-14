@@ -51,7 +51,8 @@ Rect bounding_box(const std::vector<uint16_t>& a, const std::vector<uint16_t>& b
         }
     }
     if (min_x > max_x) return {};
-    return {min_x, min_y, max_x - min_x + 1, max_y - min_y + 1};
+    return {.left = min_x, .top = min_y,
+            .width = max_x - min_x + 1, .height = max_y - min_y + 1};
 }
 
 Rect union_of(const Rect& a, const Rect& b) {
@@ -61,7 +62,7 @@ Rect union_of(const Rect& a, const Rect& b) {
     const unsigned top = std::min(a.top, b.top);
     const unsigned right = std::max(a.left + a.width, b.left + b.width);
     const unsigned bottom = std::max(a.top + a.height, b.top + b.height);
-    return {left, top, right - left, bottom - top};
+    return {.left = left, .top = top, .width = right - left, .height = bottom - top};
 }
 
 class Optimizer {
@@ -224,7 +225,9 @@ private:
                     max_y = std::max(max_y, y);
                 }
             }
-            if (min_x <= max_x) needed = {min_x, min_y, max_x - min_x + 1, max_y - min_y + 1};
+            if (min_x <= max_x)
+                needed = {.left = min_x, .top = min_y,
+                          .width = max_x - min_x + 1, .height = max_y - min_y + 1};
             if (!needed.empty()) {
                 disposal_[i - 1] = Disposal::Background;
                 clear_rect_[i - 1] = needed;
@@ -254,10 +257,11 @@ private:
             const std::vector<uint16_t> target = walker.advance(i);
 
             Rect rect = options_.crop_frames ? bounding_box(canvas, target, width_, height_)
-                                             : Rect{0, 0, width_, height_};
+                                             : Rect{.left = 0, .top = 0,
+                                                    .width = width_, .height = height_};
             // the area this frame will erase has to be inside the frame itself
             if (disposal_[i] == Disposal::Background) rect = union_of(rect, clear_rect_[i]);
-            if (rect.empty()) rect = {0, 0, 1, 1};
+            if (rect.empty()) rect = {.left = 0, .top = 0, .width = 1, .height = 1};
 
             const std::size_t count = static_cast<std::size_t>(rect.width) * rect.height;
             std::vector<uint16_t> pixels(count);

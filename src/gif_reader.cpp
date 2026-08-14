@@ -11,8 +11,7 @@ namespace gifout {
 bool Extension::is_application(std::string_view name) const {
     if (label != 0xFF || blocks.empty()) return false;
     const auto& id = blocks.front();
-    return id.size() >= name.size() &&
-           std::memcmp(id.data(), name.data(), name.size()) == 0;
+    return std::string_view(reinterpret_cast<const char*>(id.data()), id.size()).starts_with(name);
 }
 
 bool ReadResult::has_errors() const {

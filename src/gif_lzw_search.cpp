@@ -21,7 +21,7 @@ struct BlockEncoder {
     uint8_t min_code_bits = 0;
     Dictionary& dict;
 
-    int clear_code() const { return 1 << min_code_bits; }
+    [[nodiscard]] int clear_code() const { return 1 << min_code_bits; }
 
     // walks from `from`, reporting the running cost at every aligned position through
     // `report(position, bits_including_terminator)`. report returns false to give up on
