@@ -1,9 +1,9 @@
-#include "gif_optimizer.hpp"
+#include "gifoutcpp/gif_optimizer.hpp"
 
 #include <algorithm>
 #include <unordered_map>
 
-#include "gif_encoder.hpp"
+#include "gifoutcpp/gif_encoder.hpp"
 
 namespace gifout {
 namespace {

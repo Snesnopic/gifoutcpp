@@ -1,4 +1,4 @@
-#include "gif_encoder.hpp"
+#include "gifoutcpp/gif_encoder.hpp"
 
 #include <algorithm>
 

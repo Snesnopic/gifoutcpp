@@ -5,8 +5,8 @@
 #include <cstdint>
 #include <span>
 
-#include "gif_encoder.hpp"
-#include "gif_types.hpp"
+#include "gifoutcpp/gif_encoder.hpp"
+#include "gifoutcpp/gif_types.hpp"
 
 namespace gifout {
 

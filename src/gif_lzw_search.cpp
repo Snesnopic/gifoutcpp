@@ -1,4 +1,4 @@
-#include "gif_lzw_search.hpp"
+#include "gifoutcpp/gif_lzw_search.hpp"
 
 #include <limits>
 

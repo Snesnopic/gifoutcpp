@@ -5,7 +5,7 @@
 #include <filesystem>
 #include <vector>
 
-#include "gif_types.hpp"
+#include "gifoutcpp/gif_types.hpp"
 
 namespace gifout {
 

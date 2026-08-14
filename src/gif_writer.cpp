@@ -1,4 +1,4 @@
-#include "gif_writer.hpp"
+#include "gifoutcpp/gif_writer.hpp"
 
 #include <cstdio>
 

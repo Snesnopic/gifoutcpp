@@ -6,8 +6,8 @@
 #include <string>
 #include <vector>
 
-#include "gif_encoder.hpp"
-#include "gif_reader.hpp"
+#include "gifoutcpp/gif_encoder.hpp"
+#include "gifoutcpp/gif_reader.hpp"
 
 extern "C" {
 #include <lcdfgif/gif.h>

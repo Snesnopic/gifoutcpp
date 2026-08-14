@@ -1,4 +1,4 @@
-#include "gif_lzw.hpp"
+#include "gifoutcpp/gif_lzw.hpp"
 
 #include <array>
 #include <string>

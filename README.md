@@ -88,6 +88,34 @@ and flexiGIF out of a [chisel](https://github.com/Snesnopic/chisel) checkout:
 cmake -S . -B build -DGIFOUT_BUILD_BENCH=ON -DCHISEL_ROOT=../chisel
 ```
 
+## Using it as a library
+
+```cpp
+#include <gifoutcpp/gifoutcpp.hpp>
+
+gifout::Options options;
+options.restructure = true;      // crop frames, pick disposal, rebuild palettes
+options.search_restarts = true;  // search the lzw restart points
+options.search.threads = 0;      // 0 means as many as the machine has
+
+const auto r = gifout::recompress_file("in.gif", "out.gif", options);
+if (r.ok && r.smaller()) { /* keep it */ }
+```
+
+`recompress` does the same in memory, and `recompress_stream` takes a `Stream` the
+caller already has, so a consumer can inspect or edit frames between the stages.
+Everything reachable from `gifoutcpp/gifoutcpp.hpp` is the supported surface;
+anything under `src/` is not.
+
+```
+cmake --install build --prefix /somewhere
+find_package(gifoutcpp REQUIRED)
+target_link_libraries(app PRIVATE gifoutcpp::core)
+```
+
+CI installs the library and builds an external consumer against it on every push, so
+the packaging is checked rather than assumed.
+
 ## Usage
 
 ```

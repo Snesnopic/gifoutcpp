@@ -1,10 +1,10 @@
-#include "gif_reader.hpp"
+#include "gifoutcpp/gif_reader.hpp"
 
 #include <cstdio>
 #include <cstring>
 #include <string>
 
-#include "gif_lzw.hpp"
+#include "gifoutcpp/gif_lzw.hpp"
 
 namespace gifout {
 

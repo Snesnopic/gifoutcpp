@@ -1,13 +1,10 @@
 #include <cstdio>
+#include <algorithm>
 #include <cstring>
 #include <string>
 #include <vector>
 
-#include "gif_encoder.hpp"
-#include "gif_lzw_search.hpp"
-#include "gif_optimizer.hpp"
-#include "gif_reader.hpp"
-#include "gif_writer.hpp"
+#include "gifoutcpp/gifoutcpp.hpp"
 
 #ifndef GIFOUTCPP_VERSION
 #define GIFOUTCPP_VERSION "0.0.0"
@@ -52,8 +49,9 @@ const char* severity_name(gifout::Severity s) {
     }
 }
 
-void print_diagnostics(const gifout::ReadResult& result, const std::string& name) {
-    for (const auto& d : result.diagnostics)
+void print_diagnostics(const std::vector<gifout::Diagnostic>& diagnostics,
+                       const std::string& name) {
+    for (const auto& d : diagnostics)
         std::fprintf(stderr, "%s: %s at offset %zu: %s\n", name.c_str(), severity_name(d.severity),
                      d.offset, d.message.c_str());
 }
@@ -76,12 +74,8 @@ void print_info(const gifout::Stream& s) {
 }  // namespace
 
 int main(int argc, char** argv) {
-    bool info = false, quiet = false, copy = false, optimize = false;
-    gifout::OptimizeOptions optimize_options;
-    gifout::WriteOptions write_options;
-    gifout::EncodeOptions encode_options;
-    gifout::SearchOptions search_options;
-    bool search = false, unoptimize = false, strip = false;
+    bool info = false, quiet = false;
+    gifout::Options options;
     std::vector<std::string> positional;
 
     for (int i = 1; i < argc; ++i) {
@@ -95,42 +89,41 @@ int main(int argc, char** argv) {
         } else if (arg == "-i" || arg == "--info") {
             info = true;
         } else if (arg == "-O" || arg == "--optimize") {
-            optimize = true;
+            options.restructure = true;
         } else if (arg == "--deinterlace") {
-            optimize = true;
-            optimize_options.deinterlace = true;
-        } else if (arg == "-c" || arg == "--copy") {
-            copy = true;
-        } else if (arg == "--strip") {
-            strip = true;
+            options.deinterlace = true;
         } else if (arg == "-u" || arg == "--unoptimize") {
-            unoptimize = true;
+            options.unoptimize = true;
+        } else if (arg == "--strip") {
+            options.strip_metadata = true;
         } else if (arg == "--level" && i + 1 < argc) {
             const std::string level = argv[++i];
             if (level == "l1" || level == "L1" || level == "structure") {
-                optimize_options.level = gifout::Lossless::Structure;
+                options.level = gifout::Lossless::Structure;
             } else if (level == "l2" || level == "L2" || level == "rendering") {
-                optimize_options.level = gifout::Lossless::Rendering;
+                options.level = gifout::Lossless::Rendering;
             } else {
                 std::fprintf(stderr, "unknown level %s, expected l1 or l2\n", level.c_str());
                 return 2;
             }
         } else if (arg == "-s" || arg == "--search") {
-            search = true;
-        } else if (arg == "--alignment" && i + 1 < argc) {
-            search_options.alignment = static_cast<unsigned>(std::stoul(argv[++i]));
+            options.search_restarts = true;
         } else if ((arg == "-j" || arg == "--threads") && i + 1 < argc) {
-            search_options.threads = static_cast<unsigned>(std::stoul(argv[++i]));
+            options.search.threads = static_cast<unsigned>(std::stoul(argv[++i]));
+        } else if (arg == "--alignment" && i + 1 < argc) {
+            options.search.alignment = static_cast<unsigned>(std::stoul(argv[++i]));
         } else if (arg == "--max-tokens" && i + 1 < argc) {
-            search_options.max_tokens = static_cast<unsigned>(std::stoul(argv[++i]));
+            options.search.max_tokens = static_cast<unsigned>(std::stoul(argv[++i]));
+        } else if (arg == "-c" || arg == "--copy") {
+            options.copy_lzw = true;
         } else if (arg == "--careful") {
-            encode_options.careful_min_code_size = true;
+            options.encode.careful_min_code_size = true;
         } else if (arg == "--eager-clear") {
-            encode_options.eager_clear = true;
+            options.encode.eager_clear = true;
         } else if (arg == "--both-clears") {
-            encode_options.try_both_clear_policies = true;
+            options.encode.try_both_clear_policies = true;
         } else if (arg == "--reblock") {
-            write_options.reblock_lzw = true;
+            options.reblock_lzw = true;
         } else if (arg == "-q" || arg == "--quiet") {
             quiet = true;
         } else if (!arg.empty() && arg[0] == '-' && arg != "-") {
@@ -145,111 +138,40 @@ int main(int argc, char** argv) {
         usage();
         return 2;
     }
-
     const std::string& input = positional[0];
-    gifout::ReadOptions read_options;
-    if ((optimize || unoptimize) && optimize_options.level == gifout::Lossless::Structure) {
-        std::fprintf(stderr, "level l1 cannot restructure, drop -O/-u or ask for l2\n");
-        return 2;
-    }
-    read_options.decode_pixels = info || !copy || optimize || unoptimize;
-    auto result = gifout::read_gif_file(input, read_options);
-    if (!quiet || result.has_errors()) print_diagnostics(result, input);
-    if (!result.ok) {
-        std::fprintf(stderr, "%s: unreadable\n", input.c_str());
-        return 1;
-    }
 
     if (info) {
-        print_info(result.stream);
+        gifout::ReadOptions read_options;
+        auto read = gifout::read_gif_file(input);
+        if (!quiet || read.has_errors()) print_diagnostics(read.diagnostics, input);
+        if (!read.ok) {
+            std::fprintf(stderr, "%s: unreadable\n", input.c_str());
+            return 1;
+        }
+        print_info(read.stream);
         return 0;
     }
+
     if (positional.size() < 2) {
         std::fprintf(stderr, "no output file given\n");
         return 2;
     }
 
-    // restructuring can lose on some files, so the plain recompression is kept as a
-    // floor: the tool must never hand back something larger than it could have
-    if (strip) {
-        const std::size_t removed = gifout::strip_metadata(result.stream);
-        if (!quiet && removed)
-            std::fprintf(stderr, "%s: %zu bytes of metadata dropped\n", input.c_str(), removed);
-        if (removed) copy = false;
-    }
-
-    std::vector<uint8_t> fallback;
-    if (unoptimize) {
-        const auto stats = gifout::unoptimize(result.stream);
-        if (!quiet && !stats.skipped.empty())
-            std::fprintf(stderr, "%s: not expanded: %s\n", input.c_str(), stats.skipped.c_str());
-        copy = false;
-    }
-    if (optimize) {
-        gifout::Stream plain = result.stream;
-        for (auto& frame : plain.frames)
-            if (frame.pixels_complete)
-                gifout::encode_frame(frame, gifout::effective_palette_size(frame, plain),
-                                     encode_options);
-        fallback = gifout::write_gif(plain, write_options);
-
-        const auto stats = gifout::optimize(result.stream, optimize_options);
-        if (!quiet) {
-            if (!stats.skipped.empty())
-                std::fprintf(stderr, "%s: not optimized: %s\n", input.c_str(),
-                             stats.skipped.c_str());
-            else
-                std::fprintf(stderr,
-                             "%s: %zu frames (%zu dropped), %zu -> %zu pixels, %zu -> %zu colors\n",
-                             input.c_str(), result.stream.frames.size(), stats.frames_dropped,
-                             stats.pixels_before, stats.pixels_after, stats.colors_before,
-                             stats.colors_after);
-        }
-        copy = false;
-    }
-
-    if (!copy) {
-        for (auto& frame : result.stream.frames) {
-            // a frame the decoder had to repair no longer matches its own lzw data, so
-            // re-encoding it would change the image rather than just its encoding
-            if (!frame.pixels_complete) {
-                if (!quiet)
-                    std::fprintf(stderr, "%s: frame with a damaged lzw stream copied verbatim\n",
-                                 input.c_str());
-                continue;
-            }
-            const unsigned palette = gifout::effective_palette_size(frame, result.stream);
-            if (search) {
-                auto found = gifout::encode_lzw_search(frame.pixels, frame.width, frame.height,
-                                                       frame.interlaced, palette, encode_options,
-                                                       search_options);
-                auto greedy = gifout::encode_lzw(frame.pixels, frame.width, frame.height,
-                                                 frame.interlaced, palette, encode_options);
-                // the search should win, but a heuristic occasionally lands better
-                if (found.searched && found.encoded.lzw.size() < greedy.encoded_size())
-                    frame.lzw = std::move(found.encoded.lzw);
-                else
-                    frame.lzw = std::move(greedy.lzw);
-                frame.lzw_min_code_size = greedy.min_code_size;
-                frame.block_sizes.clear();
-            } else {
-                gifout::encode_frame(frame, palette, encode_options);
-            }
-        }
-    }
-
-    auto bytes = gifout::write_gif(result.stream, write_options);
-    if (!fallback.empty() && fallback.size() < bytes.size()) {
-        if (!quiet)
-            std::fprintf(stderr, "%s: restructuring lost %zu bytes, keeping the plain encode\n",
-                         input.c_str(), bytes.size() - fallback.size());
-        bytes = std::move(fallback);
-    }
-    std::FILE* out = std::fopen(positional[1].c_str(), "wb");
-    if (!out || std::fwrite(bytes.data(), 1, bytes.size(), out) != bytes.size() ||
-        std::fclose(out) != 0) {
-        std::fprintf(stderr, "%s: cannot write\n", positional[1].c_str());
+    const auto result = gifout::recompress_file(input, positional[1], options);
+    const bool has_error = std::any_of(result.diagnostics.begin(), result.diagnostics.end(),
+                                       [](const gifout::Diagnostic& d) {
+                                           return d.severity == gifout::Severity::Error;
+                                       });
+    if (!quiet || has_error) print_diagnostics(result.diagnostics, input);
+    if (!result.ok) {
+        std::fprintf(stderr, "%s: failed\n", input.c_str());
         return 1;
+    }
+    if (!quiet) {
+        std::fprintf(stderr, "%s: %zu -> %zu bytes, %zu -> %zu frames%s%s\n", input.c_str(),
+                     result.input_bytes, result.output_bytes, result.frames_in, result.frames_out,
+                     result.metadata_removed ? ", metadata dropped" : "",
+                     result.restructure_note.empty() ? "" : (", " + result.restructure_note).c_str());
     }
     return 0;
 }

@@ -5,7 +5,7 @@
 #include <cstring>
 #include <string>
 
-#include "gif_reader.hpp"
+#include "gifoutcpp/gif_reader.hpp"
 
 extern "C" {
 #include <lcdfgif/gif.h>

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(gifoutcpp VERSION 0.1.0 LANGUAGES C CXX)
+project(gifoutcpp VERSION 0.2.0 LANGUAGES C CXX)
 
 if(MSVC)
     # force static msvc runtime linkage (/mt for release, /mtd for debug)
@@ -28,6 +28,7 @@ find_package(Threads REQUIRED)
 
 # core: everything a library consumer needs, no i/o policy and no cli
 add_library(gifout_core
+    src/gifoutcpp.cpp
     src/gif_lzw.cpp
     src/gif_lzw_search.cpp
     src/gif_encoder.cpp
@@ -35,7 +36,11 @@ add_library(gifout_core
     src/gif_reader.cpp
     src/gif_writer.cpp
 )
-target_include_directories(gifout_core PUBLIC include)
+target_include_directories(gifout_core PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<INSTALL_INTERFACE:include>)
+set_target_properties(gifout_core PROPERTIES VERSION ${PROJECT_VERSION} EXPORT_NAME core)
+add_library(gifoutcpp::core ALIAS gifout_core)
 target_link_libraries(gifout_core PUBLIC Threads::Threads)
 
 # cli: a thin consumer of the core, mirroring how chisel would use it
@@ -43,7 +48,22 @@ add_executable(gifoutcpp src/main.cpp)
 target_link_libraries(gifoutcpp PRIVATE gifout_core)
 target_compile_definitions(gifoutcpp PRIVATE GIFOUTCPP_VERSION="${PROJECT_VERSION}")
 
-install(TARGETS gifoutcpp DESTINATION bin)
+# a consumer gets find_package(gifoutcpp) and links gifoutcpp::core
+include(GNUInstallDirs)
+include(CMakePackageConfigHelpers)
+install(TARGETS gifout_core EXPORT gifoutcppTargets)
+install(TARGETS gifoutcpp DESTINATION ${CMAKE_INSTALL_BINDIR})
+install(DIRECTORY include/gifoutcpp DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+install(EXPORT gifoutcppTargets NAMESPACE gifoutcpp::
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/gifoutcpp)
+write_basic_package_version_file(
+        "${CMAKE_CURRENT_BINARY_DIR}/gifoutcppConfigVersion.cmake"
+        VERSION ${PROJECT_VERSION} COMPATIBILITY SameMajorVersion)
+file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/gifoutcppConfig.cmake"
+     "include(CMakeFindDependencyMacro)\nfind_dependency(Threads)\ninclude(\"\${CMAKE_CURRENT_LIST_DIR}/gifoutcppTargets.cmake\")\n")
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/gifoutcppConfig.cmake"
+              "${CMAKE_CURRENT_BINARY_DIR}/gifoutcppConfigVersion.cmake"
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/gifoutcpp)
 
 option(GIFOUT_BUILD_TESTS "Build the test binary" ON)
 if(GIFOUT_BUILD_TESTS)

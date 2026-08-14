@@ -155,6 +155,38 @@ jobs:
           done
           exit $fail
 
+      # the library has to be usable from outside: install it, then build a consumer
+      # that only knows find_package and the public header
+      - name: Install and build an external consumer
+        run: |
+          cmake --install build --prefix /tmp/prefix
+          mkdir -p /tmp/consumer
+          cat > /tmp/consumer/main.cpp <<'EOF'
+          #include <cstdio>
+          #include <gifoutcpp/gifoutcpp.hpp>
+          int main(int argc, char** argv) {
+              if (argc != 3) return 2;
+              gifout::Options options;
+              options.restructure = true;
+              options.search_restarts = true;
+              const auto r = gifout::recompress_file(argv[1], argv[2], options);
+              std::printf("%zu -> %zu bytes\n", r.input_bytes, r.output_bytes);
+              return r.ok ? 0 : 1;
+          }
+          EOF
+          cat > /tmp/consumer/CMakeLists.txt <<'EOF'
+          cmake_minimum_required(VERSION 3.16)
+          project(consumer CXX)
+          set(CMAKE_CXX_STANDARD 20)
+          find_package(gifoutcpp REQUIRED)
+          add_executable(consumer main.cpp)
+          target_link_libraries(consumer PRIVATE gifoutcpp::core)
+          EOF
+          cmake -S /tmp/consumer -B /tmp/consumer/build -DCMAKE_PREFIX_PATH=/tmp/prefix
+          cmake --build /tmp/consumer/build
+          /tmp/consumer/build/consumer /tmp/fx/anim.gif /tmp/consumer_out.gif
+          gifdiff -w /tmp/fx/anim.gif /tmp/consumer_out.gif
+
       - name: Info mode reads every fixture
         run: |
           for f in /tmp/fx/*.gif; do ./build/gifoutcpp --info "$f" > /dev/null || exit 1; done

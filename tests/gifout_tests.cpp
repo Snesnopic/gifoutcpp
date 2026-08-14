@@ -9,12 +9,13 @@
 #include <string>
 #include <vector>
 
-#include "gif_encoder.hpp"
-#include "gif_lzw.hpp"
-#include "gif_lzw_search.hpp"
-#include "gif_optimizer.hpp"
-#include "gif_reader.hpp"
-#include "gif_writer.hpp"
+#include "gifoutcpp/gifoutcpp.hpp"
+#include "gifoutcpp/gif_encoder.hpp"
+#include "gifoutcpp/gif_lzw.hpp"
+#include "gifoutcpp/gif_lzw_search.hpp"
+#include "gifoutcpp/gif_optimizer.hpp"
+#include "gifoutcpp/gif_reader.hpp"
+#include "gifoutcpp/gif_writer.hpp"
 
 namespace {
 
@@ -302,6 +303,61 @@ void test_unoptimize_expands_frames() {
     check(render(s) == before, "unoptimize does not change what is shown");
 }
 
+// the facade is what a consumer sees, so it gets its own coverage
+void test_public_api() {
+    std::vector<Frame> frames;
+    for (int i = 0; i < 3; ++i) {
+        auto f = make_frame(48, 48, [&](uint16_t x, uint16_t y) -> uint8_t {
+            const bool box = x >= i * 8u && x < i * 8u + 10 && y >= 10 && y < 20;
+            return box ? 7 : static_cast<uint8_t>((x / 12 + y / 12) % 3);
+        });
+        f.delay = 8;
+        f.has_gce = true;
+        frames.push_back(std::move(f));
+    }
+    Stream s = make_stream(frames);
+    for (auto& f : s.frames) encode_frame(f, effective_palette_size(f, s));
+    Extension comment;
+    comment.label = 0xFE;
+    comment.blocks.push_back({'m', 'e', 't', 'a'});
+    s.frames[0].extensions.push_back(comment);
+    const auto original = write_gif(s);
+
+    std::vector<uint8_t> out;
+    Options options;
+    const auto plain = recompress(original, out, options);
+    check(plain.ok && !out.empty(), "recompress works with default options");
+    check(plain.input_bytes == original.size(), "input size reported");
+    check(plain.output_bytes == out.size(), "output size reported");
+    check(plain.frames_in == 3 && plain.frames_out == 3, "frame counts reported");
+    check(!plain.restructured, "nothing restructured unless asked");
+
+    options.restructure = true;
+    options.search_restarts = true;
+    const auto full = recompress(original, out, options);
+    check(full.ok, "restructure and search run");
+    check(full.output_bytes <= plain.output_bytes, "the fuller pipeline is not larger");
+    auto reread = read_gif(out);
+    check(reread.ok && reread.diagnostics.empty(), "the result reads back cleanly");
+
+    options.strip_metadata = true;
+    const auto stripped = recompress(original, out, options);
+    check(stripped.metadata_removed > 0, "metadata removal is reported");
+    for (const auto& f : read_gif(out).stream.frames)
+        for (const auto& e : f.extensions) check(e.label != 0xFE, "comments really go away");
+
+    Options refuse;
+    refuse.level = Lossless::Structure;
+    refuse.restructure = true;
+    const auto refused = recompress(original, out, refuse);
+    check(!refused.ok && !refused.restructure_note.empty(), "l1 plus restructure is refused");
+
+    const std::vector<uint8_t> garbage(64, 0x42);
+    const auto bad = recompress(garbage, out, {});
+    check(!bad.ok, "garbage is rejected, not crashed on");
+    check(!version().empty(), "version is reported");
+}
+
 void test_level_l1_refuses_to_restructure() {
     auto f = make_frame(16, 16, [](uint16_t x, uint16_t) { return static_cast<uint8_t>(x % 4); });
     Stream s = make_stream({f});
@@ -323,6 +379,7 @@ int main() {
         {"optimizer preserves the animation", test_optimizer_preserves_the_animation},
         {"unoptimize", test_unoptimize_expands_frames},
         {"level l1", test_level_l1_refuses_to_restructure},
+        {"public api", test_public_api},
     };
     for (const auto& [name, fn] : tests) {
         const int before = failures;
