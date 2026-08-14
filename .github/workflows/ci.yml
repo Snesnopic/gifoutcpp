@@ -114,8 +114,8 @@ jobs:
         run: |
           fail=0
           for f in /tmp/fx/*.gif; do
-            ./build/gifoutcpp -q "$f" /tmp/plain.gif
-            ./build/gifoutcpp -q -O "$f" /tmp/opt.gif
+            ./build/gifoutcpp -q "$f" /tmp/plain.gif || { echo "FAIL $f"; fail=1; continue; }
+            ./build/gifoutcpp -q -O "$f" /tmp/opt.gif || { echo "FAIL $f"; fail=1; continue; }
             plain=$(stat -c%s /tmp/plain.gif); opt=$(stat -c%s /tmp/opt.gif)
             if [ "$opt" -gt "$plain" ]; then
               echo "FAIL $(basename "$f"): -O gave $opt, plain gave $plain"
@@ -129,8 +129,8 @@ jobs:
         run: |
           fail=0
           for f in /tmp/fx/*.gif; do
-            ./build/gifoutcpp -q -O -s -j 1 "$f" /tmp/one.gif
-            ./build/gifoutcpp -q -O -s -j 0 "$f" /tmp/many.gif
+            ./build/gifoutcpp -q -O -s -j 1 "$f" /tmp/one.gif || { echo "FAIL $f"; fail=1; continue; }
+            ./build/gifoutcpp -q -O -s -j 0 "$f" /tmp/many.gif || { echo "FAIL $f"; fail=1; continue; }
             if cmp -s /tmp/one.gif /tmp/many.gif; then
               echo "ok  $(basename "$f")"
             else
@@ -144,8 +144,8 @@ jobs:
         run: |
           fail=0
           for f in /tmp/fx/*.gif; do
-            ./build/gifoutcpp -q "$f" /tmp/greedy.gif
-            ./build/gifoutcpp -q -s "$f" /tmp/search.gif
+            ./build/gifoutcpp -q "$f" /tmp/greedy.gif || { echo "FAIL $f"; fail=1; continue; }
+            ./build/gifoutcpp -q -s "$f" /tmp/search.gif || { echo "FAIL $f"; fail=1; continue; }
             gifdiff "$f" /tmp/search.gif || { echo "FAIL renders differently: $f"; fail=1; }
             g=$(stat -c%s /tmp/greedy.gif); s=$(stat -c%s /tmp/search.gif)
             if [ "$s" -gt "$g" ]; then
@@ -192,8 +192,8 @@ jobs:
           size=$(stat -c%s /tmp/anim.gif)
           for cut in $(seq 1 17 "$size"); do
             head -c "$cut" /tmp/anim.gif > /tmp/trunc.gif
-            ./build-asan/gifoutcpp --info /tmp/trunc.gif > /dev/null 2>&1
-            code=$?
+            code=0
+            ./build-asan/gifoutcpp --info /tmp/trunc.gif > /dev/null 2>&1 || code=$?
             if [ "$code" -gt 2 ]; then
               echo "FAIL crash on ${cut}-byte prefix (exit $code)"
               exit 1

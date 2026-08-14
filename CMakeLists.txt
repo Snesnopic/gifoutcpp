@@ -22,6 +22,10 @@ endif()
 
 option(GIFOUT_BUILD_BENCH "Build the research harness that links gifsicle and flexigif" OFF)
 
+# std::thread needs an explicit -pthread on some platforms; freebsd fails to link
+# without it, while glibc and macos happen to resolve it anyway
+find_package(Threads REQUIRED)
+
 # core: everything a library consumer needs, no i/o policy and no cli
 add_library(gifout_core
     src/gif_lzw.cpp
@@ -32,6 +36,7 @@ add_library(gifout_core
     src/gif_writer.cpp
 )
 target_include_directories(gifout_core PUBLIC include)
+target_link_libraries(gifout_core PUBLIC Threads::Threads)
 
 # cli: a thin consumer of the core, mirroring how chisel would use it
 add_executable(gifoutcpp src/main.cpp)
