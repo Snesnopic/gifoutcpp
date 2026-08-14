@@ -137,6 +137,7 @@ gifoutcpp [options] <input.gif> [output.gif]
       --max-tokens N how far a block is explored (default 10000)
       --strip       drop comments and application metadata, keep the loop block
   -b, --best        try the settings that win on some files and lose on others
+  -x, --exhaustive N  search the parse itself with a beam N wide
       --lookahead N try N match lengths per token instead of only the longest
       --keep-interlace  keep interlacing, which is otherwise dropped
   -i, --info        report structure and diagnostics, write nothing
@@ -234,6 +235,16 @@ highest index, so the order of the global colour table decides how many bits eve
 frame pays. Ordering it by the colours of the variant a frame is likely to keep, and
 serving the frames with the fewest colours first, is what closed the last measurable
 gap on the longest animation in the corpus.
+
+**There is no exhaustive mode, and there cannot be.** `-x` searches the parse itself,
+keeping several ways of having reached each position with the dictionary each one
+built. It is not exhaustive: an LZW encoder's state is the position *and* the
+dictionary that got it there, two parses meeting at a position almost never carry the
+same dictionary, so the paths never merge and the state count grows exponentially.
+That is the difference from a codec whose DP state is just a position. What `-x`
+offers is as wide a search as you are willing to pay for, made monotone by
+construction: it runs every width up to the one asked for and keeps the smallest, with
+the greedy encoder as a floor, so more effort can never return a larger file.
 
 **The search prunes only where it can prove it is safe.** Accumulated bits never go
 down and the cost of any remaining tail is non-negative, so once a block alone is

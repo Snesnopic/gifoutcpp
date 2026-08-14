@@ -152,6 +152,42 @@ void test_lookahead_never_loses() {
     }
 }
 
+// the beam is allowed to be slow and to find nothing, but never to lose and never to
+// write something that does not decode back
+void test_beam_is_monotone_and_lossless() {
+    std::mt19937 rng(31337);
+    for (int trial = 0; trial < 4; ++trial) {
+        const uint16_t w = 48, h = 32;
+        auto frame = make_frame(w, h, [&](uint16_t x, uint16_t y) -> uint8_t {
+            if (trial == 0) return static_cast<uint8_t>((x / 4 + y / 4) % 4);
+            if (trial == 1) return static_cast<uint8_t>(rng() % 4);
+            if (trial == 2) return static_cast<uint8_t>(((x + y) % 9) ? 1 : 2);
+            return 0;
+        });
+        const auto greedy = encode_lzw(frame.pixels, w, h, false, 4);
+        std::size_t previous = greedy.lzw.size();
+        for (const std::size_t width : {std::size_t{1}, std::size_t{4}, std::size_t{16}}) {
+            BeamOptions beam;
+            beam.width = width;
+            const auto found = encode_lzw_beam(frame.pixels, w, h, false, 4, {}, beam);
+            check(found.searched, "the beam ran");
+            check(found.encoded.lzw.size() <= greedy.lzw.size(), "the beam never loses to greedy");
+            check(found.encoded.lzw.size() <= previous, "more effort never gives a larger result");
+            previous = found.encoded.lzw.size();
+            std::vector<Diagnostic> diagnostics;
+            const auto back = decode_lzw(found.encoded.lzw, found.encoded.min_code_size, w, h,
+                                         false, diagnostics);
+            check(back.pixels == frame.pixels && back.complete, "the beam output decodes back");
+        }
+    }
+    // a frame past the budget is refused rather than attempted
+    auto big = make_frame(400, 400, [](uint16_t x, uint16_t) { return static_cast<uint8_t>(x % 4); });
+    BeamOptions small_budget;
+    small_budget.max_pixels = 1000;
+    const auto refused = encode_lzw_beam(big.pixels, 400, 400, false, 4, {}, small_budget);
+    check(!refused.searched, "an oversized frame is refused, not attempted");
+}
+
 // ----- container -----
 
 void test_container_round_trip() {
@@ -493,6 +529,7 @@ int main(int argc, char** argv) {
         {"lzw round trip", test_lzw_round_trip},
         {"search", test_search_matches_and_never_loses},
         {"lookahead", test_lookahead_never_loses},
+        {"beam", test_beam_is_monotone_and_lossless},
         {"container round trip", test_container_round_trip},
         {"reader survives damage", test_reader_survives_damage},
         {"optimizer preserves the animation", test_optimizer_preserves_the_animation},

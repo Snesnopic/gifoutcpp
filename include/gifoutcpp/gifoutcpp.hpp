@@ -12,6 +12,7 @@
 
 #include "gifoutcpp/gif_encoder.hpp"
 #include "gifoutcpp/gif_lzw.hpp"
+#include "gifoutcpp/gif_lzw_beam.hpp"
 #include "gifoutcpp/gif_lzw_search.hpp"
 #include "gifoutcpp/gif_optimizer.hpp"
 #include "gifoutcpp/gif_reader.hpp"
@@ -48,6 +49,11 @@ struct Options {
 
     EncodeOptions encode;
     SearchOptions search;  // alignment, max_tokens and threads live here
+
+    // search the parse itself, as widely as the caller is willing to pay for. off by
+    // default because it is orders of magnitude slower than everything else here.
+    BeamOptions beam;
+    bool search_parse = false;
 };
 
 struct Result {

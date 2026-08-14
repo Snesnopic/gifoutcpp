@@ -11,6 +11,16 @@ void encode_frames(Stream& stream, const Options& options) {
         // re-encoding it would change the image rather than just its encoding
         if (!frame.pixels_complete) continue;
         const unsigned palette = effective_palette_size(frame, stream);
+        if (options.search_parse) {
+            auto beam = encode_lzw_beam(frame.pixels, frame.width, frame.height, frame.interlaced,
+                                        palette, options.encode, options.beam);
+            if (beam.searched && !beam.encoded.lzw.empty()) {
+                frame.lzw = std::move(beam.encoded.lzw);
+                frame.lzw_min_code_size = beam.encoded.min_code_size;
+                frame.block_sizes.clear();
+                continue;
+            }
+        }
         if (!options.search_restarts) {
             encode_frame(frame, palette, options.encode);
             continue;

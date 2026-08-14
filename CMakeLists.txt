@@ -31,6 +31,7 @@ add_library(gifout_core
     src/gifoutcpp.cpp
     src/gif_lzw.cpp
     src/gif_lzw_search.cpp
+    src/gif_lzw_beam.cpp
     src/gif_encoder.cpp
     src/gif_optimizer.cpp
     src/gif_reader.cpp

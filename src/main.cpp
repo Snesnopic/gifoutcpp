@@ -29,6 +29,8 @@ void usage() {
         "                    (default 1; the output is identical whatever you pick)\n"
         "      --lookahead N try N match lengths per token instead of only the longest,\n"
         "                    keeping the result only when it really came out smaller\n"
+        "  -x, --exhaustive N  search the parse itself with a beam N wide, trying every\n"
+        "                    width up to it and keeping the smallest. very slow.\n"
         "  -b, --best        try the settings that win on some files and lose on others,\n"
         "                    and keep whichever came out smallest\n"
         "      --keep-interlace  keep interlacing; it is dropped by default because it\n"
@@ -123,6 +125,9 @@ int main(int argc, char** argv) {
             options.search.max_tokens = static_cast<unsigned>(std::stoul(argv[++i]));
         } else if (arg == "-c" || arg == "--copy") {
             options.copy_lzw = true;
+        } else if ((arg == "-x" || arg == "--exhaustive") && i + 1 < argc) {
+            options.search_parse = true;
+            options.beam.width = std::stoul(argv[++i]);
         } else if (arg == "--lookahead" && i + 1 < argc) {
             options.encode.lookahead = static_cast<unsigned>(std::stoul(argv[++i]));
         } else if (arg == "--careful") {
