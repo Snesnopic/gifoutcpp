@@ -23,7 +23,7 @@ Due conseguenze misurate:
   sommando i delay al frame precedente: durata totale identica (9500 ms e 11520 ms
   invariati), `gifdiff -w` dice identico, `gifdiff` senza `-w` dice diverso.
 * Il `raw_equal` di chisel confronta numero di frame e delay per-frame via stb:
-  classificherebbe l'output `-O3` come **corruzione**. Quindi il livello di
+  classificherebbe l'output `gifsicle -O3` come **corruzione**. Quindi il livello di
   losslessness non è un dettaglio interno: è un parametro pubblico del progetto.
 
 ## 1. Misure trasversali (le tabelle che decidono i verdetti)
@@ -38,7 +38,7 @@ Corpus di 51 GIF reali (31,6 MB, 136,5 M pixel, 1–475 frame). M2 Pro, Release.
 | gifsicle come lo chiama chisel (`flags = 0`) | 30 798 799 B | −2,62 % | 1,5 s |
 | gifsicle `-O3` | 29 082 967 B | **−8,04 %** | **4,8 s** |
 
-Sui soli 14 file animati: −0,40 % (chisel) contro **−8,27 %** (`-O3`).
+Sui soli 14 file animati: −0,40 % (chisel) contro **−8,27 %** (`gifsicle -O3`).
 
 **Sottoinsieme di 29 file ≤ 600 k pixel** (l'unico su cui flexigif finisce in
 tempi umani):
@@ -50,19 +50,19 @@ tempi umani):
 | gifsicle `-O3` da solo | 1 230 957 B | −9,46 % |
 | **gifsicle `-O3` + flexigif** | **1 194 813 B** | **−12,12 %** |
 
-**Le due ottimizzazioni compongono**: il DP LZW aggiunge 0,69 pp sopra `-O3`, e
-`-O3` aggiunge 2,66 pp sopra quello che chisel ottiene oggi. In tempo: `-O3` costa
+**Le due ottimizzazioni compongono**: il DP LZW aggiunge 0,69 pp sopra `gifsicle -O3`, e
+`gifsicle -O3` aggiunge 2,66 pp sopra quello che chisel ottiene oggi. In tempo: `gifsicle -O3` costa
 meno di 1 s su questi 29 file, flexigif ~737 s.
 
-**Perché `-O3` guadagna anche su immagini a frame singolo** (non è ottimizzazione
+**Perché `gifsicle -O3` guadagna anche su immagini a frame singolo** (non è ottimizzazione
 d'animazione — è potatura della palette, misurata):
 
 | file | palette | byte | LZW |
 |---|---|---|---|
 | `xs07_Relfizeau` originale | 256 colori | 5 060 | 4 260 |
-| dopo `-O3` | **8 colori** | 4 151 | 4 103 |
+| dopo `gifsicle -O3` | **8 colori** | 4 151 | 4 103 |
 | `xs01_Dictionary…` originale | 256 | 5 866 | 5 066 |
-| dopo `-O3` | **8** | 4 972 | 4 916 |
+| dopo `gifsicle -O3` | **8** | 4 972 | 4 916 |
 
 768 B di tabella colori che scendono a 24, più un `min_code_size` più piccolo che
 migliora anche l'LZW. flexigif non può farlo per costruzione: ricopia gli header
@@ -70,7 +70,7 @@ verbatim.
 
 **De-interlacciamento** (7 file su 51 sono interlacciati), `gifdiff -w` identico:
 
-| file | `-O3` | `-O3 --no-interlace` |
+| file | `gifsicle -O3` | `-O3 --no-interlace` |
 |---|---|---|
 | `m02_Rrfs…` | 65 436 | 59 634 (−8,87 %) |
 | `m08_Rrfs…` | 47 364 | 43 134 (−8,93 %) |
@@ -99,13 +99,13 @@ pre-pass 28 239 ms, final pass 3 ms, decode+write ~1 ms. Dentro il pre-pass:
 (2,57 G in `findMatch` + 2,44 G in `addCode`, che ripercorre lo stesso cammino),
 e solo il 5,1 % nel memset del dizionario.
 
-## 1bis. Il DP sulle animazioni, dopo `-O3`
+## 1bis. Il DP sulle animazioni, dopo `gifsicle -O3`
 
-Misurato su tre animazioni di taglia media già ottimizzate `-O3`, `alignment = 160`
+Misurato su tre animazioni di taglia media già ottimizzate `gifsicle -O3`, `alignment = 160`
 (le animazioni grandi non sono misurabili con l'implementazione attuale: `l02` sono
 31,5 Mpx, ~87 h anche ad `alignment = 160`):
 
-| file | frame | `-O3` vs orig | DP sopra `-O3` | pixel: orig → dopo `-O3` | tempo DP |
+| file | frame | `gifsicle -O3` vs orig | DP sopra `gifsicle -O3` | pixel: orig → dopo `gifsicle -O3` | tempo DP |
 |---|---|---|---|---|---|
 | `l06_CD86_structure` | 50 | −3,80 % | **−1,01 %** | 4 500 000 → 2 147 100 (−52 %) | 3,3 s |
 | `l01_Wikinews…logo` | 44 | −32,04 % | **−1,09 %** | 7 040 000 → 3 548 900 (−50 %) | 6,1 s |
@@ -113,9 +113,9 @@ Misurato su tre animazioni di taglia media già ottimizzate `-O3`, `alignment = 
 
 Due conclusioni, entrambe a favore dell'ordine "prima strutturale, poi LZW":
 
-1. Il DP resta utile sulle animazioni (−1 % / −3,5 % sopra `-O3`): non degrada a
+1. Il DP resta utile sulle animazioni (−1 % / −3,5 % sopra `gifsicle -O3`): non degrada a
    funzione per sole immagini statiche.
-2. `-O3` **dimezza il lavoro del DP** ritagliando i frame al bounding box: su due
+2. `gifsicle -O3` **dimezza il lavoro del DP** ritagliando i frame al bounding box: su due
    dei tre file i pixel da ottimizzare scendono del ~50 %. Lo stadio caro diventa
    più economico proprio perché quello economico gira prima.
 
@@ -127,7 +127,7 @@ Due conclusioni, entrambe a favore dell'ordine "prima strutturale, poi LZW":
 |---|---|---|---|
 | `gifread.c` | 979 | parser tollerante: error handler con recovery (clampa `min_code_size` fuori range, scarta frame a dimensione zero o oltre 65535², tronca i messaggi dopo N errori, conserva estensioni sconosciute), letture `COMPRESSED`/`UNCOMPRESSED` | **PORTA** — misurato: unico dei due che legge 51/51 |
 | `giffunc.c` | 844 | modello dati: `Gif_Stream`/`Gif_Image`/`Gif_Colormap`/`Gif_Comment`/`Gif_Extension`, refcount, coesistenza di rappresentazione compressa e non | **PORTA (concetto)** — è esattamente il modello che manca a flexigif; da riscrivere in C++ con RAII invece di refcount manuale |
-| `optimize.c` + `opttemplate.c` | 467+960 | ottimizzatore d'animazione: simulazione del canvas, bounding box minimo per frame, scelta del disposal con modello a penalità, diffing con trasparenza (a `-O3` prova due varianti e tiene la più piccola), costruzione colormap globale/locali, rimozione dei frame ridondanti con somma dei delay | **PORTA** — è il modulo col miglior rapporto guadagno/tempo di tutto lo studio, e chisel non lo invoca mai |
+| `optimize.c` + `opttemplate.c` | 467+960 | ottimizzatore d'animazione: simulazione del canvas, bounding box minimo per frame, scelta del disposal con modello a penalità, diffing con trasparenza (a `gifsicle -O3` prova due varianti e tiene la più piccola), costruzione colormap globale/locali, rimozione dei frame ridondanti con somma dei delay | **PORTA** — è il modulo col miglior rapporto guadagno/tempo di tutto lo studio, e chisel non lo invoca mai |
 | `gifwrite.c` | 1213 | writer del container + encoder LZW greedy con restart euristico (media mobile EWMA delle run, con *rewind* al punto di clear scelto), flag `CAREFUL_MIN_CODE_SIZE`/`EAGER_CLEAR`/`OPTIMIZE`/`SHRINK`, blocking a 255 B, calcolo di `min_code_bits` | **PORTA il writer, RISCRIVI l'encoder** — l'euristica EWMA resta come encoder veloce di default e come funzione di costo per le scelte dell'ottimizzatore strutturale |
 | `gifunopt.c` | 238 | *unoptimize*: riespande ogni frame a schermo intero applicando il disposal | **PORTA** — prerequisito per ri-ottimizzare animazioni già ottimizzate e per confrontare a livello L2 |
 | `kcolor.c` | 708 | spazio colore e istogramma (`kchist`), usato da `optimize.c` per costruire la colormap | **PORTA parziale** — serve `kchist`; le conversioni Oklab/gamma servono solo alla quantizzazione |
@@ -166,7 +166,7 @@ da eliminare in un port.
 | `Compress.cpp/hpp` | 128+55 | formato `.Z` di unix compress | **SCARTA** — e con esso il flag `m_isGif` che sporca l'encoder di rami morti |
 | `cli/flexiGIF.cpp` | 913 | CLI | **SCARTA** — ma la sua lista di opzioni è la mappa dei parametri da riesporre |
 
-**Cosa fa bene**: il DP è l'idea giusta e paga (0,69 pp sopra `-O3`, dove gifsicle
+**Cosa fa bene**: il DP è l'idea giusta e paga (0,69 pp sopra `gifsicle -O3`, dove gifsicle
 non arriva); il codice è leggibile e la struttura del costo è esplicita.
 
 **Cosa fa male, in ordine di gravità misurata**:
@@ -209,7 +209,7 @@ Vincoli di progetto che emergono dallo studio:
   implicita. Un consumatore come chisel, che verifica con un `raw_equal`
   struttura-sensibile, deve poter chiedere L1.
 * **Serve una funzione di costo LZW veloce, separata da quella ottima.**
-  L'ottimizzatore strutturale a `-O3` sceglie fra due varianti di trasparenza
+  L'ottimizzatore strutturale a `gifsicle -O3` sceglie fra due varianti di trasparenza
   *comprimendole entrambe*: non si può farlo col DP. Encoder greedy per le scelte
   interne, DP solo sul vincitore.
 * **Parallelismo opzionale, single-thread di prima classe.** Stesso output bit per
@@ -221,10 +221,10 @@ Vincoli di progetto che emergono dallo studio:
 
 ## 5. Cosa resta aperto
 
-* ~~Il DP dopo `-O3` sulle animazioni vere~~ — **chiuso**, vedi §1bis.
+* ~~Il DP dopo `gifsicle -O3` sulle animazioni vere~~ — **chiuso**, vedi §1bis.
 * Il pruning dimostrabilmente sicuro dello scan in avanti resta non risolto (il
   bound naïve non regge: i due termini si muovono alla stessa velocità).
 * Il de-interlacciamento è L2 ma cambia il caricamento progressivo su rete lenta:
-  va sotto un flag proprio, non dentro `-O3`.
+  va sotto un flag proprio, non dentro `gifsicle -O3`.
 * Non è ancora misurato quanto valga il `--careful` di gifsicle (compatibilità con
   decoder difettosi) in termini di byte.

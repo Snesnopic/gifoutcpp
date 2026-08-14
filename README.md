@@ -10,7 +10,7 @@ optimizes the *structure* of an animation (frame bounding boxes, disposal,
 transparency, palettes) but encodes LZW greedily. [flexiGIF](https://create.stephan-brumme.com/flexigif-lossless-gif-lzw-optimization/)
 finds near-optimal LZW dictionary restart points but copies the container
 verbatim, so it can never touch a palette or a frame boundary. Measured on 51 real
-GIFs, the two gains compose: `-O3` alone is −9.46 %, `-O3` followed by the LZW
+GIFs, the two gains compose: `gifsicle -O3` alone is −9.46 %, `gifsicle -O3` followed by the LZW
 optimizer is −12.12 %.
 
 `ANALYSIS.md` documents the study behind those choices: what each codebase does,
@@ -97,7 +97,7 @@ gifoutcpp [options] <input.gif> [output.gif]
   -v, --version     version number
 ```
 
-`--both-clears` is what gifsicle only turns on at `-O3`. Measured over the corpus it
+`--both-clears` is what gifsicle only turns on at `gifsicle -O3`. Measured over the corpus it
 buys 0.004 % for 1.5x the time, so it is an option rather than the default.
 
 ## Design notes
@@ -133,6 +133,24 @@ the picture.
 parallelism arrives it will be optional, with single-threaded output identical bit
 for bit.
 
+## Levels, and a note on names
+
+`gifsicle -O1/-O2/-O3` in this document always means gifsicle's *structural*
+optimization level, never a compiler flag: `-O1` crops each frame to what changes
+and picks a disposal, `-O2` also turns pixels equal to the previous frame
+transparent, `-O3` also tries a second transparency variant and an eager dictionary
+clear, keeping whichever compresses smaller.
+
 ## License
 
-Not chosen yet. The ported parts of gifsicle are GPL-2.0, which will constrain it.
+MIT, see `LICENSE`. No code was copied: the algorithms here were re-implemented
+from studying how the two established tools work, and `ANALYSIS.md` records that
+study. Credit where it is due, though — the run-length heuristic that decides
+dictionary restarts and the transparency substitution rule are Eddie Kohler's, from
+[gifsicle](https://github.com/kohler/gifsicle) (GPL-2.0), and the idea of searching
+for optimal restart points is Stephan Brumme's, from
+[flexiGIF](https://create.stephan-brumme.com/flexigif-lossless-gif-lzw-optimization/).
+
+The instrumented copy of flexiGIF's encoder under `bench/instrumented/` is derived
+from third-party sources and is deliberately not committed; it is regenerated
+locally by `bench/instrumented/instrument.py`.
