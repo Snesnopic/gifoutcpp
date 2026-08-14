@@ -1,0 +1,128 @@
+name: Round Trip & Robustness Test
+
+on:
+  push:
+    branches: [ "**" ]
+  pull_request:
+    branches: [ "**" ]
+
+jobs:
+  round-trip:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y cmake build-essential gifsicle imagemagick
+
+      - name: Configure and build
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build -j$(nproc)
+
+      # fixtures cover the structural features the reader has to preserve:
+      # single frame, animation, interlacing, transparency, local colormaps,
+      # comments and application extensions, tiny palettes
+      - name: Generate fixtures
+        run: |
+          mkdir -p /tmp/fx
+          magick -size 160x120 gradient:red-blue /tmp/fx/static.gif
+          magick -size 64x64 xc:white -fill black \
+                 -draw "circle 32,32 32,8" /tmp/fx/shapes.gif
+          magick -delay 10 -size 80x80 xc:red xc:green xc:blue \
+                 -loop 0 /tmp/fx/anim.gif
+          magick -size 100x100 plasma:fractal -colors 8 /tmp/fx/few_colors.gif
+          gifsicle --interlace /tmp/fx/static.gif -o /tmp/fx/interlaced.gif
+          gifsicle -O3 /tmp/fx/anim.gif -o /tmp/fx/anim_opt.gif
+          gifsicle --comment "gifoutcpp test" /tmp/fx/shapes.gif -o /tmp/fx/commented.gif
+          gifsicle --transparent 0 /tmp/fx/few_colors.gif -o /tmp/fx/transparent.gif
+          ls -l /tmp/fx
+
+      # an untouched read/write cycle must reproduce the input byte for byte;
+      # anything else means the model lost part of the file
+      - name: Round trip is byte-identical
+        run: |
+          fail=0
+          for f in /tmp/fx/*.gif; do
+            ./build/gifoutcpp -q "$f" "/tmp/out.gif" || { echo "FAIL read/write $f"; fail=1; continue; }
+            if cmp -s "$f" /tmp/out.gif; then
+              echo "ok  $(basename "$f")"
+            else
+              echo "FAIL not byte-identical: $(basename "$f")"
+              cmp -l "$f" /tmp/out.gif | head -5
+              fail=1
+            fi
+          done
+          exit $fail
+
+      # re-chunking the lzw blocks changes the bytes but must not change the image
+      - name: Reblocked output renders identically
+        run: |
+          fail=0
+          for f in /tmp/fx/*.gif; do
+            ./build/gifoutcpp -q --reblock "$f" "/tmp/out.gif" || { echo "FAIL $f"; fail=1; continue; }
+            if gifdiff "$f" /tmp/out.gif; then
+              echo "ok  $(basename "$f")"
+            else
+              echo "FAIL renders differently: $(basename "$f")"
+              fail=1
+            fi
+          done
+          exit $fail
+
+      - name: Info mode reads every fixture
+        run: |
+          for f in /tmp/fx/*.gif; do ./build/gifoutcpp --info "$f" > /dev/null || exit 1; done
+
+  robustness:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y cmake build-essential imagemagick
+
+      - name: Configure and build with sanitizers
+        run: |
+          cmake -S . -B build-asan -DCMAKE_BUILD_TYPE=Debug \
+                -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-sanitize-recover=all -g"
+          cmake --build build-asan -j$(nproc)
+
+      # a parser that meets real files has to survive damaged ones: every prefix of
+      # a valid gif, plus byte-level corruption, must not crash or read out of bounds
+      - name: Truncated and corrupted inputs
+        run: |
+          magick -delay 10 -size 60x60 xc:red xc:green xc:blue -loop 0 /tmp/anim.gif
+          size=$(stat -c%s /tmp/anim.gif)
+          for cut in $(seq 1 17 "$size"); do
+            head -c "$cut" /tmp/anim.gif > /tmp/trunc.gif
+            ./build-asan/gifoutcpp --info /tmp/trunc.gif > /dev/null 2>&1
+            code=$?
+            if [ "$code" -gt 2 ]; then
+              echo "FAIL crash on ${cut}-byte prefix (exit $code)"
+              exit 1
+            fi
+          done
+          python3 - <<'EOF'
+          import random, subprocess, sys
+          data = bytearray(open('/tmp/anim.gif','rb').read())
+          random.seed(7)
+          for i in range(200):
+              d = bytearray(data)
+              for _ in range(random.randint(1, 8)):
+                  d[random.randrange(len(d))] = random.randrange(256)
+              open('/tmp/fuzz.gif','wb').write(d)
+              p = subprocess.run(['./build-asan/gifoutcpp','--info','/tmp/fuzz.gif'],
+                                 capture_output=True)
+              if p.returncode > 2:
+                  sys.stderr.write(f"crash on mutation {i}, exit {p.returncode}\n")
+                  sys.stderr.write(p.stderr.decode('utf-8', 'replace')[:4000])
+                  sys.exit(1)
+          print("200 mutated inputs handled")
+          EOF
