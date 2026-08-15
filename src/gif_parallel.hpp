@@ -2,14 +2,14 @@
  * @file gif_parallel.hpp
  * @brief Internal: splitting an index range over threads without changing the answer.
  */
-#ifndef GIFOUTCPP_GIF_PARALLEL_HPP
-#define GIFOUTCPP_GIF_PARALLEL_HPP
+#ifndef OPTIGIF_GIF_PARALLEL_HPP
+#define OPTIGIF_GIF_PARALLEL_HPP
 
 #include <cstddef>
 #include <thread>
 #include <vector>
 
-namespace gifout {
+namespace optigif {
 
 /**
  * @brief Runs body(i, worker) for every i in [0, count), in contiguous blocks.
@@ -56,6 +56,6 @@ inline unsigned resolve_threads(unsigned requested) {
     return hardware ? hardware : 1;
 }
 
-}  // namespace gifout
+}  // namespace optigif
 
-#endif  // GIFOUTCPP_GIF_PARALLEL_HPP
+#endif  // OPTIGIF_GIF_PARALLEL_HPP

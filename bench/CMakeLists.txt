@@ -28,15 +28,15 @@ target_compile_options(inst_bench PRIVATE -g -fno-omit-frame-pointer)
 # cross-check: our decoder against gifsicle's on the same file
 add_executable(decode_check decode_check.cpp)
 target_include_directories(decode_check PRIVATE "${CHISEL_ROOT}/third_party/gifsicle/include")
-target_link_libraries(decode_check PRIVATE gifout_core libgifsicle)
+target_link_libraries(decode_check PRIVATE optigif_core libgifsicle)
 
 add_executable(encode_check encode_check.cpp)
 target_include_directories(encode_check PRIVATE "${CHISEL_ROOT}/third_party/gifsicle/include")
-target_link_libraries(encode_check PRIVATE gifout_core libgifsicle)
+target_link_libraries(encode_check PRIVATE optigif_core libgifsicle)
 
 # throwaway experiment: how much does greedy lzw parsing leave on the table
 add_executable(parse_probe parse_probe.cpp)
-target_link_libraries(parse_probe PRIVATE gifout_core)
+target_link_libraries(parse_probe PRIVATE optigif_core)
 
 add_executable(beam_probe beam_probe.cpp)
-target_link_libraries(beam_probe PRIVATE gifout_core)
+target_link_libraries(beam_probe PRIVATE optigif_core)

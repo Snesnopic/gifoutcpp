@@ -6,8 +6,8 @@
 #include <string>
 #include <vector>
 
-#include "gifoutcpp/gif_encoder.hpp"
-#include "gifoutcpp/gif_reader.hpp"
+#include "optigif/gif_encoder.hpp"
+#include "optigif/gif_reader.hpp"
 
 extern "C" {
 #include <lcdfgif/gif.h>
@@ -44,7 +44,7 @@ int main(int argc, char** argv) {
     }
     const char* path = argv[1];
 
-    auto ours = gifout::read_gif_file(path);
+    auto ours = optigif::read_gif_file(path);
     if (!ours.ok) {
         std::printf("SKIP %s: unreadable\n", path);
         return 0;
@@ -76,8 +76,8 @@ int main(int argc, char** argv) {
         }
         const Unpacked theirs = unpack(gfi->compressed, gfi->compressed_len);
 
-        const unsigned palette = gifout::effective_palette_size(frame, ours.stream);
-        const auto mine = gifout::encode_lzw(frame.pixels, frame.width, frame.height,
+        const unsigned palette = optigif::effective_palette_size(frame, ours.stream);
+        const auto mine = optigif::encode_lzw(frame.pixels, frame.width, frame.height,
                                              frame.interlaced, palette);
 
         ours_total += mine.lzw.size();

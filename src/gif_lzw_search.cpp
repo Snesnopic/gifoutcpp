@@ -1,4 +1,4 @@
-#include "gifoutcpp/gif_lzw_search.hpp"
+#include "optigif/gif_lzw_search.hpp"
 
 #include <limits>
 
@@ -6,7 +6,7 @@
 
 #include "lzw_internal.hpp"
 
-namespace gifout {
+namespace optigif {
 using namespace detail;
 namespace {
 
@@ -227,4 +227,4 @@ SearchResult encode_lzw_search(std::span<const uint8_t> pixels, uint16_t width, 
     return result;
 }
 
-}  // namespace gifout
+}  // namespace optigif

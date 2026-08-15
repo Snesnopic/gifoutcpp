@@ -1,4 +1,4 @@
-#include "gifoutcpp/gif_lzw_beam.hpp"
+#include "optigif/gif_lzw_beam.hpp"
 
 #include <algorithm>
 #include <map>
@@ -7,7 +7,7 @@
 
 #include "lzw_internal.hpp"
 
-namespace gifout {
+namespace optigif {
 using namespace detail;
 namespace {
 
@@ -199,4 +199,4 @@ BeamResult encode_lzw_beam(std::span<const uint8_t> pixels, uint16_t width, uint
     return result;
 }
 
-}  // namespace gifout
+}  // namespace optigif

@@ -5,8 +5,8 @@
  * Not part of the public surface. Included by the encoder, the restart search and the
  * parse search so that all three agree on how a dictionary behaves and how bits land.
  */
-#ifndef GIFOUTCPP_LZW_INTERNAL_HPP
-#define GIFOUTCPP_LZW_INTERNAL_HPP
+#ifndef OPTIGIF_LZW_INTERNAL_HPP
+#define OPTIGIF_LZW_INTERNAL_HPP
 
 #include <algorithm>
 #include <bit>
@@ -15,7 +15,7 @@
 #include <span>
 #include <vector>
 
-namespace gifout::detail {
+namespace optigif::detail {
 
 /** @brief Widest LZW code GIF allows. */
 constexpr int kMaxCodeBits = 12;
@@ -112,10 +112,11 @@ public:
      */
     void put(unsigned code, int bits) {
         while (bits > 0) {
-            if ((bit_pos_ & 7) == 0) bytes_.push_back(0);
-            const int free_bits = 8 - (bit_pos_ & 7);
+            const int used = static_cast<int>(bit_pos_ & 7);
+            if (used == 0) bytes_.push_back(0);
+            const int free_bits = 8 - used;
             const int take = std::min(bits, free_bits);
-            bytes_.back() |= static_cast<uint8_t>((code & ((1u << take) - 1)) << (bit_pos_ & 7));
+            bytes_.back() |= static_cast<uint8_t>((code & ((1u << take) - 1)) << used);
             code >>= take;
             bits -= take;
             bit_pos_ += static_cast<std::size_t>(take);
@@ -221,6 +222,6 @@ inline uint8_t min_code_bits_for(std::span<const uint8_t> pixels, unsigned palet
     return static_cast<uint8_t>(std::clamp(bits, 2, 8));
 }
 
-}  // namespace gifout::detail
+}  // namespace optigif::detail
 
-#endif  // GIFOUTCPP_LZW_INTERNAL_HPP
+#endif  // OPTIGIF_LZW_INTERNAL_HPP

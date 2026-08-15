@@ -2,17 +2,17 @@
  * @file gif_lzw.hpp
  * @brief The LZW decoder.
  */
-#ifndef GIFOUTCPP_GIF_LZW_HPP
-#define GIFOUTCPP_GIF_LZW_HPP
+#ifndef OPTIGIF_GIF_LZW_HPP
+#define OPTIGIF_GIF_LZW_HPP
 
 #include <cstddef>
 #include <cstdint>
 #include <span>
 #include <vector>
 
-#include "gifoutcpp/gif_types.hpp"
+#include "optigif/gif_types.hpp"
 
-namespace gifout {
+namespace optigif {
 
 /** @brief Pixels recovered from an LZW stream, and whether they came out whole. */
 struct DecodeResult {
@@ -40,6 +40,6 @@ DecodeResult decode_lzw(std::span<const uint8_t> lzw, uint8_t min_code_size, uin
                         uint16_t height, bool interlaced, std::vector<Diagnostic>& diagnostics,
                         std::size_t offset_hint = 0);
 
-}  // namespace gifout
+}  // namespace optigif
 
-#endif  // GIFOUTCPP_GIF_LZW_HPP
+#endif  // OPTIGIF_GIF_LZW_HPP

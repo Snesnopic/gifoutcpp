@@ -6,8 +6,8 @@
  * both representations of a frame at once, the compressed LZW bytes and the decoded
  * indices, so a stage can rewrite one without discarding the other.
  */
-#ifndef GIFOUTCPP_GIF_TYPES_HPP
-#define GIFOUTCPP_GIF_TYPES_HPP
+#ifndef OPTIGIF_GIF_TYPES_HPP
+#define OPTIGIF_GIF_TYPES_HPP
 
 #include <cstddef>
 #include <cstdint>
@@ -16,13 +16,13 @@
 #include <string_view>
 #include <vector>
 
-namespace gifout {
+namespace optigif {
 
 /** @brief One entry of a colour table. */
 struct Color {
-    uint8_t r = 0;  ///< Red channel.
-    uint8_t g = 0;  ///< Green channel.
-    uint8_t b = 0;  ///< Blue channel.
+    uint8_t r = 0u;  ///< Red channel.
+    uint8_t g = 0u;  ///< Green channel.
+    uint8_t b = 0u;  ///< Blue channel.
 
     /** @brief Two colours are the same when all three channels are. */
     friend bool operator==(const Color&, const Color&) = default;
@@ -144,6 +144,6 @@ struct Diagnostic {
     std::string message;                 ///< What happened, in plain words.
 };
 
-}  // namespace gifout
+}  // namespace optigif
 
-#endif  // GIFOUTCPP_GIF_TYPES_HPP
+#endif  // OPTIGIF_GIF_TYPES_HPP

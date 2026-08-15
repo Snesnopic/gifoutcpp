@@ -1,12 +1,12 @@
-#include "gifoutcpp/gif_reader.hpp"
+#include "optigif/gif_reader.hpp"
 
 #include <cstdio>
 #include <cstring>
 #include <string>
 
-#include "gifoutcpp/gif_lzw.hpp"
+#include "optigif/gif_lzw.hpp"
 
-namespace gifout {
+namespace optigif {
 
 bool Extension::is_application(std::string_view name) const {
     if (label != 0xFF || blocks.empty()) return false;
@@ -30,8 +30,6 @@ public:
     [[nodiscard]] std::size_t offset() const { return pos_; }
     [[nodiscard]] bool exhausted() const { return pos_ >= data_.size(); }
     [[nodiscard]] std::size_t remaining() const { return data_.size() - pos_; }
-
-    [[nodiscard]] int peek() const { return pos_ < data_.size() ? data_[pos_] : -1; }
 
     int byte() {
         if (pos_ >= data_.size()) return -1;
@@ -339,4 +337,4 @@ ReadResult read_gif_file(const std::filesystem::path& path, const ReadOptions& o
     return read_gif(data, options);
 }
 
-}  // namespace gifout
+}  // namespace optigif

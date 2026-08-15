@@ -13,7 +13,7 @@
 #include <string>
 #include <vector>
 
-#include "gifoutcpp/gifoutcpp.hpp"
+#include "optigif/optigif.hpp"
 
 namespace {
 
@@ -197,7 +197,7 @@ int main(int argc, char** argv) {
     }
 
     for (const auto& path : files) {
-        auto read = gifout::read_gif_file(path);
+        auto read = optigif::read_gif_file(path);
         if (!read.ok) continue;
         for (std::size_t f = 0; f < read.stream.frames.size(); ++f) {
             const auto& frame = read.stream.frames[f];
@@ -213,8 +213,8 @@ int main(int argc, char** argv) {
                 const State best = search(frame.pixels, mcb, beam, widths);
                 const auto tokens = unwind(best.tokens);
                 const auto bytes = emit(frame.pixels, mcb, tokens);
-                std::vector<gifout::Diagnostic> diagnostics;
-                const auto back = gifout::decode_lzw(bytes, static_cast<uint8_t>(mcb), frame.width,
+                std::vector<optigif::Diagnostic> diagnostics;
+                const auto back = optigif::decode_lzw(bytes, static_cast<uint8_t>(mcb), frame.width,
                                                      frame.height, false, diagnostics);
                 const bool sound = back.pixels == frame.pixels && back.complete;
                 if (beam == 1) baseline = best.bits;

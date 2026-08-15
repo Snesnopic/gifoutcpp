@@ -11,8 +11,8 @@ runtime (Apple's does not; `brew install llvm` does).
   would have caught the block boundary desync.
 
 ```
-CXX=$(brew --prefix llvm)/bin/clang++ cmake -S . -B build-fuzz -DGIFOUT_BUILD_FUZZERS=ON \
-    -DGIFOUT_BUILD_TESTS=OFF -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+CXX=$(brew --prefix llvm)/bin/clang++ cmake -S . -B build-fuzz -DOPTIGIF_BUILD_FUZZERS=ON \
+    -DOPTIGIF_BUILD_TESTS=OFF -DCMAKE_BUILD_TYPE=RelWithDebInfo \
     -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-sanitize-recover=all"
 cmake --build build-fuzz
 mkdir -p /tmp/corpus
@@ -21,7 +21,7 @@ mkdir -p /tmp/corpus
 
 `fuzz/seeds` holds a handful of tiny GIFs written by our own writer, covering an
 animation, transparency, a local colormap, interlacing and a comment block. Generate
-or refresh them with `build/gifout_tests --write-seeds fuzz/seeds`.
+or refresh them with `build/optigif_tests --write-seeds fuzz/seeds`.
 
 A note on limits: under ASan the default `-rss_limit_mb=2048` is reached by the
 fuzzer's own bookkeeping on a long session, not by a single input. Raise it rather

@@ -16,7 +16,7 @@ import sys
 import time
 import urllib.request
 
-UA = "gifoutcpp-corpus/1.0 (https://github.com/Snesnopic/gifoutcpp)"
+UA = "optigif-corpus/1.0 (https://github.com/Snesnopic/optigif)"
 HERE = os.path.dirname(os.path.abspath(__file__))
 MANIFEST = os.path.join(HERE, "corpus.manifest.json")
 CORPUS = os.path.join(HERE, "corpus")

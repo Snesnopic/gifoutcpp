@@ -9,13 +9,13 @@
 #include <string>
 #include <vector>
 
-#include "gifoutcpp/gifoutcpp.hpp"
-#include "gifoutcpp/gif_encoder.hpp"
-#include "gifoutcpp/gif_lzw.hpp"
-#include "gifoutcpp/gif_lzw_search.hpp"
-#include "gifoutcpp/gif_optimizer.hpp"
-#include "gifoutcpp/gif_reader.hpp"
-#include "gifoutcpp/gif_writer.hpp"
+#include "optigif/optigif.hpp"
+#include "optigif/gif_encoder.hpp"
+#include "optigif/gif_lzw.hpp"
+#include "optigif/gif_lzw_search.hpp"
+#include "optigif/gif_optimizer.hpp"
+#include "optigif/gif_reader.hpp"
+#include "optigif/gif_writer.hpp"
 
 namespace {
 
@@ -30,7 +30,7 @@ void check(bool ok, const std::string& what) {
     }
 }
 
-using namespace gifout;
+using namespace optigif;
 
 Colormap gray_map(std::size_t n) {
     Colormap map;
@@ -519,7 +519,7 @@ void test_level_l1_refuses_to_restructure() {
 // the fuzzers want a few real gifs to start from, and the test fixtures already
 // cover the structural corners, so they double as the seed corpus
 int write_seeds(const std::string& directory) {
-    using namespace gifout;
+    using namespace optigif;
     std::vector<std::pair<std::string, Stream>> seeds;
 
     auto plain = make_frame(24, 18, [](uint16_t x, uint16_t y) { return static_cast<uint8_t>((x + y) % 8); });

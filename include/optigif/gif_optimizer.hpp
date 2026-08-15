@@ -7,16 +7,16 @@
  * changes, choosing a disposal, a transparency scheme and a palette. Every candidate is
  * measured with the encoder rather than picked by a rule of thumb.
  */
-#ifndef GIFOUTCPP_GIF_OPTIMIZER_HPP
-#define GIFOUTCPP_GIF_OPTIMIZER_HPP
+#ifndef OPTIGIF_GIF_OPTIMIZER_HPP
+#define OPTIGIF_GIF_OPTIMIZER_HPP
 
 #include <cstddef>
 #include <string>
 #include <vector>
 
-#include "gifoutcpp/gif_types.hpp"
+#include "optigif/gif_types.hpp"
 
-namespace gifout {
+namespace optigif {
 
 /**
  * @brief What a transformation is allowed to change.
@@ -42,7 +42,7 @@ struct OptimizeOptions {
     /// Threads for the per frame work, which is choosing between the transparency
     /// variants by encoding them. Frames are independent by then and the choice is a
     /// size comparison, so the result does not depend on how the work was split.
-    unsigned threads = 1;
+    unsigned threads = 1u;
 };
 
 /** @brief What the optimizer did, or why it did nothing. */
@@ -94,6 +94,6 @@ OptimizeStats unoptimize(Stream& stream);
  */
 std::size_t strip_metadata(Stream& stream);
 
-}  // namespace gifout
+}  // namespace optigif
 
-#endif  // GIFOUTCPP_GIF_OPTIMIZER_HPP
+#endif  // OPTIGIF_GIF_OPTIMIZER_HPP

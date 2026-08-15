@@ -2,16 +2,16 @@
  * @file gif_writer.hpp
  * @brief Serialising the model back to GIF bytes.
  */
-#ifndef GIFOUTCPP_GIF_WRITER_HPP
-#define GIFOUTCPP_GIF_WRITER_HPP
+#ifndef OPTIGIF_GIF_WRITER_HPP
+#define OPTIGIF_GIF_WRITER_HPP
 
 #include <cstdint>
 #include <filesystem>
 #include <vector>
 
-#include "gifoutcpp/gif_types.hpp"
+#include "optigif/gif_types.hpp"
 
-namespace gifout {
+namespace optigif {
 
 /** @brief Knobs for @ref write_gif and @ref write_gif_file. */
 struct WriteOptions {
@@ -38,6 +38,6 @@ std::vector<uint8_t> write_gif(const Stream& stream, const WriteOptions& options
 bool write_gif_file(const Stream& stream, const std::filesystem::path& path,
                     const WriteOptions& options = {});
 
-}  // namespace gifout
+}  // namespace optigif
 
-#endif  // GIFOUTCPP_GIF_WRITER_HPP
+#endif  // OPTIGIF_GIF_WRITER_HPP

@@ -1,10 +1,10 @@
-#include "gifoutcpp/gif_encoder.hpp"
+#include "optigif/gif_encoder.hpp"
 
 #include <algorithm>
 
 #include "lzw_internal.hpp"
 
-namespace gifout {
+namespace optigif {
 using namespace detail;
 namespace {
 
@@ -285,4 +285,4 @@ unsigned effective_palette_size(const Frame& frame, const Stream& stream) {
     return 256;
 }
 
-}  // namespace gifout
+}  // namespace optigif

@@ -6,37 +6,36 @@
  * the size. The greedy encoder guesses with a run length heuristic; this searches the
  * restart points instead, exactly, over positions spaced SearchOptions::alignment apart.
  */
-#ifndef GIFOUTCPP_GIF_LZW_SEARCH_HPP
-#define GIFOUTCPP_GIF_LZW_SEARCH_HPP
+#ifndef OPTIGIF_GIF_LZW_SEARCH_HPP
+#define OPTIGIF_GIF_LZW_SEARCH_HPP
 
 #include <cstddef>
 #include <cstdint>
 #include <span>
 
-#include "gifoutcpp/gif_encoder.hpp"
-#include "gifoutcpp/gif_types.hpp"
+#include "optigif/gif_encoder.hpp"
 
-namespace gifout {
+namespace optigif {
 
 /** @brief How finely and how far to search, and how many threads to use. */
 struct SearchOptions {
     /// Restart points are considered every this many pixels. The cost is linear in its
     /// inverse: 10 costs 15 to 33 times more than 160 and buys about 0.15 percent.
-    unsigned alignment = 160;
+    unsigned alignment = 160u;
 
     /// How far a block is explored before the search gives up on it.
-    unsigned max_tokens = 10000;
+    unsigned max_tokens = 10000u;
 
     /// 1 keeps everything on the calling thread, 0 asks the machine how many it has.
     /// The result is identical either way; only the wall clock changes.
-    unsigned threads = 1;
+    unsigned threads = 1u;
 };
 
 /** @brief The encoded stream the search settled on, with what it did to get there. */
 struct SearchResult {
     EncodeResult encoded;         ///< The stream, ready to store in a frame.
     std::size_t blocks = 0;       ///< Dictionary restarts plus one.
-    unsigned long long bits = 0;  ///< What the search predicted, for cross-checking.
+    unsigned long long bits = 0u;  ///< What the search predicted, for cross-checking.
     bool searched = false;        ///< False when the frame was too small to bother with.
 };
 
@@ -56,6 +55,6 @@ SearchResult encode_lzw_search(std::span<const uint8_t> pixels, uint16_t width, 
                                const EncodeOptions& encode_options = {},
                                const SearchOptions& search_options = {});
 
-}  // namespace gifout
+}  // namespace optigif
 
-#endif  // GIFOUTCPP_GIF_LZW_SEARCH_HPP
+#endif  // OPTIGIF_GIF_LZW_SEARCH_HPP

@@ -2,16 +2,16 @@
  * @file gif_lzw_beam.hpp
  * @brief Searching the LZW parse itself, as widely as the caller will pay for.
  */
-#ifndef GIFOUTCPP_GIF_LZW_BEAM_HPP
-#define GIFOUTCPP_GIF_LZW_BEAM_HPP
+#ifndef OPTIGIF_GIF_LZW_BEAM_HPP
+#define OPTIGIF_GIF_LZW_BEAM_HPP
 
 #include <cstddef>
 #include <cstdint>
 #include <span>
 
-#include "gifoutcpp/gif_encoder.hpp"
+#include "optigif/gif_encoder.hpp"
 
-namespace gifout {
+namespace optigif {
 
 /**
  * @brief How wide to search the parse, and when to refuse.
@@ -26,7 +26,7 @@ namespace gifout {
 struct BeamOptions {
     std::size_t width = 64;       ///< Widest beam to try; 0 disables the search entirely.
     std::size_t candidates = 3;   ///< Match lengths considered per token, counting down from the longest.
-    std::size_t max_pixels = 1u << 16;  ///< Refuse larger frames: every live state holds a dictionary.
+    std::size_t max_pixels = 1u << 16u;  ///< Refuse larger frames: every live state holds a dictionary.
 };
 
 /** @brief The smallest stream the search found, and which width found it. */
@@ -52,6 +52,6 @@ BeamResult encode_lzw_beam(std::span<const uint8_t> pixels, uint16_t width, uint
                            const EncodeOptions& encode_options = {},
                            const BeamOptions& beam_options = {});
 
-}  // namespace gifout
+}  // namespace optigif
 
-#endif  // GIFOUTCPP_GIF_LZW_BEAM_HPP
+#endif  // OPTIGIF_GIF_LZW_BEAM_HPP

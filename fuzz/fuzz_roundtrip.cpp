@@ -5,7 +5,7 @@
 #include <cstdint>
 #include <vector>
 
-#include "gifoutcpp/gifoutcpp.hpp"
+#include "optigif/optigif.hpp"
 
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
     if (size < 4 || size > 65536) return 0;
@@ -24,31 +24,31 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
     for (auto& p : pixels) p = static_cast<uint8_t>(p % palette);
 
     for (const bool interlaced : {false, true}) {
-        std::vector<gifout::Diagnostic> diagnostics;
+        std::vector<optigif::Diagnostic> diagnostics;
 
-        const auto greedy = gifout::encode_lzw(pixels, static_cast<uint16_t>(width),
+        const auto greedy = optigif::encode_lzw(pixels, static_cast<uint16_t>(width),
                                                static_cast<uint16_t>(height), interlaced, palette);
-        auto back = gifout::decode_lzw(greedy.lzw, greedy.min_code_size,
+        auto back = optigif::decode_lzw(greedy.lzw, greedy.min_code_size,
                                        static_cast<uint16_t>(width), static_cast<uint16_t>(height),
                                        interlaced, diagnostics);
         if (back.pixels != pixels || !back.complete || !diagnostics.empty()) __builtin_trap();
 
-        gifout::SearchOptions search;
+        optigif::SearchOptions search;
         search.alignment = 32;
         search.max_tokens = 1500;
-        const auto found = gifout::encode_lzw_search(pixels, static_cast<uint16_t>(width),
+        const auto found = optigif::encode_lzw_search(pixels, static_cast<uint16_t>(width),
                                                      static_cast<uint16_t>(height), interlaced,
                                                      palette, {}, search);
         if (!found.searched) continue;
         diagnostics.clear();
-        back = gifout::decode_lzw(found.encoded.lzw, found.encoded.min_code_size,
+        back = optigif::decode_lzw(found.encoded.lzw, found.encoded.min_code_size,
                                   static_cast<uint16_t>(width), static_cast<uint16_t>(height),
                                   interlaced, diagnostics);
         if (back.pixels != pixels || !back.complete || !diagnostics.empty()) __builtin_trap();
 
         // and the same answer however the work was divided
         search.threads = 4;
-        const auto threaded = gifout::encode_lzw_search(pixels, static_cast<uint16_t>(width),
+        const auto threaded = optigif::encode_lzw_search(pixels, static_cast<uint16_t>(width),
                                                         static_cast<uint16_t>(height), interlaced,
                                                         palette, {}, search);
         if (threaded.encoded.lzw != found.encoded.lzw) __builtin_trap();

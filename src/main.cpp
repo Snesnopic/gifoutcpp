@@ -1,18 +1,17 @@
 #include <cstdio>
 #include <algorithm>
-#include <cstring>
 #include <string>
 #include <vector>
 
-#include "gifoutcpp/gifoutcpp.hpp"
+#include "optigif/optigif.hpp"
 
 namespace {
 
 void usage() {
     std::printf(
-        "gifoutcpp %s - lossless gif recompression\n"
+        "optigif %s - lossless gif recompression\n"
         "\n"
-        "usage: gifoutcpp [options] <input.gif> [output.gif]\n"
+        "usage: optigif [options] <input.gif> [output.gif]\n"
         "\n"
         "  -O, --optimize    rebuild frames and palettes, keeping only the rendered result\n"
         "  -u, --unoptimize  expand every frame back to full screen, disposal applied\n"
@@ -42,25 +41,25 @@ void usage() {
         "  -q, --quiet       only report errors\n"
         "  -h, --help        this message\n"
         "  -v, --version     version number\n",
-        GIFOUTCPP_VERSION);
+        OPTIGIF_VERSION);
 }
 
-const char* severity_name(gifout::Severity s) {
+const char* severity_name(optigif::Severity s) {
     switch (s) {
-        case gifout::Severity::Error: return "error";
-        case gifout::Severity::Warning: return "warning";
+        case optigif::Severity::Error: return "error";
+        case optigif::Severity::Warning: return "warning";
         default: return "info";
     }
 }
 
-void print_diagnostics(const std::vector<gifout::Diagnostic>& diagnostics,
+void print_diagnostics(const std::vector<optigif::Diagnostic>& diagnostics,
                        const std::string& name) {
     for (const auto& d : diagnostics)
         std::fprintf(stderr, "%s: %s at offset %zu: %s\n", name.c_str(), severity_name(d.severity),
                      d.offset, d.message.c_str());
 }
 
-void print_info(const gifout::Stream& s) {
+void print_info(const optigif::Stream& s) {
     std::printf("screen %ux%u, version %s, %zu frames, loop %ld\n", s.screen_width, s.screen_height,
                 s.version.c_str(), s.frames.size(), s.loopcount);
     std::printf("global colormap: %zu entries%s\n", s.global ? s.global->size() : 0,
@@ -80,18 +79,18 @@ void print_info(const gifout::Stream& s) {
 int main(int argc, char** argv) {
     bool info = false;
     bool quiet = false;
-    gifout::Options options;
+    optigif::Options options;
     std::vector<std::string> positional;
 
     for (int i = 1; i < argc; ++i) {
         const std::string arg = argv[i];
         if (arg == "-h" || arg == "--help") {
             usage();
-            return 0;
+            return EXIT_SUCCESS;
         }
         if (arg == "-v" || arg == "--version") {
-            std::printf("%s\n", GIFOUTCPP_VERSION);
-            return 0;
+            std::printf("%s\n", OPTIGIF_VERSION);
+            return EXIT_SUCCESS;
         }
         if (arg == "-i" || arg == "--info") {
             info = true;
@@ -108,9 +107,9 @@ int main(int argc, char** argv) {
         } else if (arg == "--level" && i + 1 < argc) {
             const std::string level = argv[++i];
             if (level == "l1" || level == "L1" || level == "structure") {
-                options.level = gifout::Lossless::Structure;
+                options.level = optigif::Lossless::Structure;
             } else if (level == "l2" || level == "L2" || level == "rendering") {
-                options.level = gifout::Lossless::Rendering;
+                options.level = optigif::Lossless::Rendering;
             } else {
                 std::fprintf(stderr, "unknown level %s, expected l1 or l2\n", level.c_str());
                 return 2;
@@ -150,35 +149,35 @@ int main(int argc, char** argv) {
 
     if (positional.empty() || positional.size() > 2) {
         usage();
-        return 2;
+        return EXIT_FAILURE;
     }
     const std::string& input = positional[0];
 
     if (info) {
-        auto read = gifout::read_gif_file(input);
+        auto read = optigif::read_gif_file(input);
         if (!quiet || read.has_errors()) print_diagnostics(read.diagnostics, input);
         if (!read.ok) {
             std::fprintf(stderr, "%s: unreadable\n", input.c_str());
-            return 1;
+            return EXIT_FAILURE;
         }
         print_info(read.stream);
-        return 0;
+        return EXIT_SUCCESS;
     }
 
     if (positional.size() < 2) {
         std::fprintf(stderr, "no output file given\n");
-        return 2;
+        return EXIT_FAILURE;
     }
 
-    const auto result = gifout::recompress_file(input, positional[1], options);
+    const auto result = optigif::recompress_file(input, positional[1], options);
     const bool has_error = std::any_of(result.diagnostics.begin(), result.diagnostics.end(),
-                                       [](const gifout::Diagnostic& d) {
-                                           return d.severity == gifout::Severity::Error;
+                                       [](const optigif::Diagnostic& d) {
+                                           return d.severity == optigif::Severity::Error;
                                        });
     if (!quiet || has_error) print_diagnostics(result.diagnostics, input);
     if (!result.ok) {
         std::fprintf(stderr, "%s: failed\n", input.c_str());
-        return 1;
+        return EXIT_FAILURE;
     }
     if (!quiet) {
         std::fprintf(stderr, "%s: %zu -> %zu bytes, %zu -> %zu frames%s%s%s\n", input.c_str(),
@@ -189,5 +188,5 @@ int main(int argc, char** argv) {
                          : (", won by " + result.variant).c_str(),
                      result.restructure_note.empty() ? "" : (", " + result.restructure_note).c_str());
     }
-    return 0;
+    return EXIT_SUCCESS;
 }

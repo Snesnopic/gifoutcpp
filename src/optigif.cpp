@@ -1,10 +1,10 @@
-#include "gifoutcpp/gifoutcpp.hpp"
+#include "optigif/optigif.hpp"
 
 #include <cstdio>
 
 #include "gif_parallel.hpp"
 
-namespace gifout {
+namespace optigif {
 namespace {
 
 void encode_frames(Stream& stream, const Options& options) {
@@ -209,6 +209,6 @@ Result recompress_file(const std::filesystem::path& input, const std::filesystem
     return result;
 }
 
-std::string version() { return GIFOUTCPP_VERSION; }
+std::string_view version() { return OPTIGIF_VERSION; }
 
-}  // namespace gifout
+}  // namespace optigif

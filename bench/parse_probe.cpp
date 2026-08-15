@@ -13,11 +13,11 @@
 #include <unordered_map>
 #include <vector>
 
-#include "gifoutcpp/gifoutcpp.hpp"
+#include "optigif/optigif.hpp"
 
 namespace {
 
-using gifout::decode_lzw;
+using optigif::decode_lzw;
 
 // a dictionary that can undo its last insertions, which is what a lookahead needs
 class Trial {
@@ -188,7 +188,7 @@ int main(int argc, char** argv) {
 
     unsigned long long total_greedy = 0, total_smart = 0;
     for (const auto& path : files) {
-        auto read = gifout::read_gif_file(path);
+        auto read = optigif::read_gif_file(path);
         if (!read.ok) continue;
         unsigned long long greedy_bits = 0, smart_bits = 0;
         bool sound = true;
@@ -203,7 +203,7 @@ int main(int argc, char** argv) {
             // both parses must really decode back to the frame
             for (const Parse* p : {&a, &b}) {
                 const auto bytes = emit(frame.pixels, mcb, *p);
-                std::vector<gifout::Diagnostic> diagnostics;
+                std::vector<optigif::Diagnostic> diagnostics;
                 const auto back = decode_lzw(bytes, static_cast<uint8_t>(mcb), frame.width,
                                              frame.height, false, diagnostics);
                 if (back.pixels != frame.pixels || !back.complete) sound = false;

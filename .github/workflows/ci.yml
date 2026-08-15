@@ -42,7 +42,7 @@ jobs:
           $IM -size 100x100 plasma:fractal -colors 8 /tmp/fx/few_colors.gif
           gifsicle --interlace /tmp/fx/static.gif -o /tmp/fx/interlaced.gif
           gifsicle -O3 /tmp/fx/anim.gif -o /tmp/fx/anim_opt.gif
-          gifsicle --comment "gifoutcpp test" /tmp/fx/shapes.gif -o /tmp/fx/commented.gif
+          gifsicle --comment "optigif test" /tmp/fx/shapes.gif -o /tmp/fx/commented.gif
           gifsicle --transparent 0 /tmp/fx/few_colors.gif -o /tmp/fx/transparent.gif
           ls -l /tmp/fx
 
@@ -52,7 +52,7 @@ jobs:
         run: |
           fail=0
           for f in /tmp/fx/*.gif; do
-            ./build/gifoutcpp -q --copy "$f" "/tmp/out.gif" || { echo "FAIL read/write $f"; fail=1; continue; }
+            ./build/optigif -q --copy "$f" "/tmp/out.gif" || { echo "FAIL read/write $f"; fail=1; continue; }
             if cmp -s "$f" /tmp/out.gif; then
               echo "ok  $(basename "$f")"
             else
@@ -68,7 +68,7 @@ jobs:
         run: |
           fail=0
           for f in /tmp/fx/*.gif; do
-            ./build/gifoutcpp -q --copy --reblock "$f" "/tmp/out.gif" || { echo "FAIL $f"; fail=1; continue; }
+            ./build/optigif -q --copy --reblock "$f" "/tmp/out.gif" || { echo "FAIL $f"; fail=1; continue; }
             if gifdiff "$f" /tmp/out.gif; then
               echo "ok  $(basename "$f")"
             else
@@ -83,7 +83,7 @@ jobs:
         run: |
           fail=0
           for f in /tmp/fx/*.gif; do
-            ./build/gifoutcpp -q "$f" "/tmp/out.gif" || { echo "FAIL $f"; fail=1; continue; }
+            ./build/optigif -q "$f" "/tmp/out.gif" || { echo "FAIL $f"; fail=1; continue; }
             if gifdiff "$f" /tmp/out.gif; then
               echo "ok  $(basename "$f") $(stat -c%s "$f") -> $(stat -c%s /tmp/out.gif)"
             else
@@ -99,7 +99,7 @@ jobs:
         run: |
           fail=0
           for f in /tmp/fx/*.gif; do
-            ./build/gifoutcpp -q -O "$f" "/tmp/out.gif" || { echo "FAIL $f"; fail=1; continue; }
+            ./build/optigif -q -O "$f" "/tmp/out.gif" || { echo "FAIL $f"; fail=1; continue; }
             if gifdiff -w "$f" /tmp/out.gif; then
               echo "ok  $(basename "$f") $(stat -c%s "$f") -> $(stat -c%s /tmp/out.gif)"
             else
@@ -114,8 +114,8 @@ jobs:
         run: |
           fail=0
           for f in /tmp/fx/*.gif; do
-            ./build/gifoutcpp -q "$f" /tmp/plain.gif || { echo "FAIL $f"; fail=1; continue; }
-            ./build/gifoutcpp -q -O "$f" /tmp/opt.gif || { echo "FAIL $f"; fail=1; continue; }
+            ./build/optigif -q "$f" /tmp/plain.gif || { echo "FAIL $f"; fail=1; continue; }
+            ./build/optigif -q -O "$f" /tmp/opt.gif || { echo "FAIL $f"; fail=1; continue; }
             plain=$(stat -c%s /tmp/plain.gif); opt=$(stat -c%s /tmp/opt.gif)
             if [ "$opt" -gt "$plain" ]; then
               echo "FAIL $(basename "$f"): -O gave $opt, plain gave $plain"
@@ -130,8 +130,8 @@ jobs:
           fail=0
           for f in /tmp/fx/*.gif; do
             for mode in "-O" "-O -s"; do
-              ./build/gifoutcpp -q $mode -j 1 "$f" /tmp/one.gif || { echo "FAIL $f"; fail=1; continue; }
-              ./build/gifoutcpp -q $mode -j 0 "$f" /tmp/many.gif || { echo "FAIL $f"; fail=1; continue; }
+              ./build/optigif -q $mode -j 1 "$f" /tmp/one.gif || { echo "FAIL $f"; fail=1; continue; }
+              ./build/optigif -q $mode -j 0 "$f" /tmp/many.gif || { echo "FAIL $f"; fail=1; continue; }
               if cmp -s /tmp/one.gif /tmp/many.gif; then
                 echo "ok  $mode $(basename "$f")"
               else
@@ -146,8 +146,8 @@ jobs:
         run: |
           fail=0
           for f in /tmp/fx/*.gif; do
-            ./build/gifoutcpp -q "$f" /tmp/greedy.gif || { echo "FAIL $f"; fail=1; continue; }
-            ./build/gifoutcpp -q -s "$f" /tmp/search.gif || { echo "FAIL $f"; fail=1; continue; }
+            ./build/optigif -q "$f" /tmp/greedy.gif || { echo "FAIL $f"; fail=1; continue; }
+            ./build/optigif -q -s "$f" /tmp/search.gif || { echo "FAIL $f"; fail=1; continue; }
             gifdiff "$f" /tmp/search.gif || { echo "FAIL renders differently: $f"; fail=1; }
             g=$(stat -c%s /tmp/greedy.gif); s=$(stat -c%s /tmp/search.gif)
             if [ "$s" -gt "$g" ]; then
@@ -165,13 +165,13 @@ jobs:
           mkdir -p /tmp/consumer
           cat > /tmp/consumer/main.cpp <<'EOF'
           #include <cstdio>
-          #include <gifoutcpp/gifoutcpp.hpp>
+          #include <optigif/optigif.hpp>
           int main(int argc, char** argv) {
               if (argc != 3) return 2;
-              gifout::Options options;
+              optigif::Options options;
               options.restructure = true;
               options.search_restarts = true;
-              const auto r = gifout::recompress_file(argv[1], argv[2], options);
+              const auto r = optigif::recompress_file(argv[1], argv[2], options);
               std::printf("%zu -> %zu bytes\n", r.input_bytes, r.output_bytes);
               return r.ok ? 0 : 1;
           }
@@ -180,9 +180,9 @@ jobs:
           cmake_minimum_required(VERSION 3.16)
           project(consumer CXX)
           set(CMAKE_CXX_STANDARD 20)
-          find_package(gifoutcpp REQUIRED)
+          find_package(optigif REQUIRED)
           add_executable(consumer main.cpp)
-          target_link_libraries(consumer PRIVATE gifoutcpp::core)
+          target_link_libraries(consumer PRIVATE optigif::core)
           EOF
           cmake -S /tmp/consumer -B /tmp/consumer/build -DCMAKE_PREFIX_PATH=/tmp/prefix
           cmake --build /tmp/consumer/build
@@ -191,7 +191,7 @@ jobs:
 
       - name: Info mode reads every fixture
         run: |
-          for f in /tmp/fx/*.gif; do ./build/gifoutcpp --info "$f" > /dev/null || exit 1; done
+          for f in /tmp/fx/*.gif; do ./build/optigif --info "$f" > /dev/null || exit 1; done
 
   robustness:
     runs-on: ubuntu-latest
@@ -214,8 +214,8 @@ jobs:
 
       - name: Unit tests under address and thread sanitizers
         run: |
-          ./build-asan/gifout_tests
-          ./build-tsan/gifout_tests
+          ./build-asan/optigif_tests
+          ./build-tsan/optigif_tests
 
       # a parser that meets real files has to survive damaged ones: every prefix of
       # a valid gif, plus byte-level corruption, must not crash or read out of bounds
@@ -227,7 +227,7 @@ jobs:
           for cut in $(seq 1 17 "$size"); do
             head -c "$cut" /tmp/anim.gif > /tmp/trunc.gif
             code=0
-            ./build-asan/gifoutcpp --info /tmp/trunc.gif > /dev/null 2>&1 || code=$?
+            ./build-asan/optigif --info /tmp/trunc.gif > /dev/null 2>&1 || code=$?
             if [ "$code" -gt 2 ]; then
               echo "FAIL crash on ${cut}-byte prefix (exit $code)"
               exit 1
@@ -242,7 +242,7 @@ jobs:
               for _ in range(random.randint(1, 8)):
                   d[random.randrange(len(d))] = random.randrange(256)
               open('/tmp/fuzz.gif','wb').write(d)
-              p = subprocess.run(['./build-asan/gifoutcpp','-q','-O','/tmp/fuzz.gif','/tmp/fz.gif'],
+              p = subprocess.run(['./build-asan/optigif','-q','-O','/tmp/fuzz.gif','/tmp/fz.gif'],
                                  capture_output=True)
               if p.returncode > 2:
                   sys.stderr.write(f"crash on mutation {i}, exit {p.returncode}\n")
@@ -252,7 +252,7 @@ jobs:
           EOF
           IM=$(command -v magick || command -v convert)
           $IM -delay 10 -size 90x90 xc:red xc:blue -loop 0 /tmp/race.gif
-          ./build-tsan/gifoutcpp -q -O -s -j 4 /tmp/race.gif /tmp/race_out.gif
+          ./build-tsan/optigif -q -O -s -j 4 /tmp/race.gif /tmp/race_out.gif
 
   fuzz:
     runs-on: ubuntu-24.04
@@ -274,7 +274,7 @@ jobs:
       - name: Build the fuzz targets
         run: |
           cmake -S . -B build-fuzz -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-                -DGIFOUT_BUILD_FUZZERS=ON \
+                -DOPTIGIF_BUILD_FUZZERS=ON \
                 -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-sanitize-recover=all"
           cmake --build build-fuzz -j$(nproc)
         env:

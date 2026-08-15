@@ -1,12 +1,12 @@
 /**
- * @file gifoutcpp.hpp
+ * @file optigif.hpp
  * @brief The whole library in one header, and the pipeline that runs its stages.
  *
  * Everything reachable from here is the supported surface, including the headers this
  * one pulls in. Anything under src/ is not.
  */
-#ifndef GIFOUTCPP_GIFOUTCPP_HPP
-#define GIFOUTCPP_GIFOUTCPP_HPP
+#ifndef OPTIGIF_OPTIGIF_HPP
+#define OPTIGIF_OPTIGIF_HPP
 
 #include <cstddef>
 #include <filesystem>
@@ -14,16 +14,16 @@
 #include <string>
 #include <vector>
 
-#include "gifoutcpp/gif_encoder.hpp"
-#include "gifoutcpp/gif_lzw.hpp"
-#include "gifoutcpp/gif_lzw_beam.hpp"
-#include "gifoutcpp/gif_lzw_search.hpp"
-#include "gifoutcpp/gif_optimizer.hpp"
-#include "gifoutcpp/gif_reader.hpp"
-#include "gifoutcpp/gif_types.hpp"
-#include "gifoutcpp/gif_writer.hpp"
+#include "optigif/gif_encoder.hpp"
+#include "optigif/gif_lzw.hpp"
+#include "optigif/gif_lzw_beam.hpp"
+#include "optigif/gif_lzw_search.hpp"
+#include "optigif/gif_optimizer.hpp"
+#include "optigif/gif_reader.hpp"
+#include "optigif/gif_types.hpp"
+#include "optigif/gif_writer.hpp"
 
-namespace gifout {
+namespace optigif {
 
 /** @brief What to do to the file, in the order the pipeline applies it. */
 struct Options {
@@ -109,8 +109,8 @@ Result recompress_stream(Stream& stream, std::vector<uint8_t>& output,
 /**
  * @return The library version, as "major.minor.patch", from the build that produced it.
  */
-[[nodiscard]] std::string version();
+[[nodiscard]] std::string_view version();
 
-}  // namespace gifout
+}  // namespace optigif
 
-#endif  // GIFOUTCPP_GIFOUTCPP_HPP
+#endif  // OPTIGIF_OPTIGIF_HPP

@@ -6,17 +6,17 @@
  * byte on the whole benchmark corpus, so anything that claims to beat it is measured
  * against something known rather than something plausible.
  */
-#ifndef GIFOUTCPP_GIF_ENCODER_HPP
-#define GIFOUTCPP_GIF_ENCODER_HPP
+#ifndef OPTIGIF_GIF_ENCODER_HPP
+#define OPTIGIF_GIF_ENCODER_HPP
 
 #include <cstddef>
 #include <cstdint>
 #include <span>
 #include <vector>
 
-#include "gifoutcpp/gif_types.hpp"
+#include "optigif/gif_types.hpp"
 
-namespace gifout {
+namespace optigif {
 
 /** @brief How to encode: code size policy, dictionary restart policy, effort. */
 struct EncodeOptions {
@@ -81,6 +81,6 @@ void encode_frame(Frame& frame, unsigned palette_size, const EncodeOptions& opti
  */
 unsigned effective_palette_size(const Frame& frame, const Stream& stream);
 
-}  // namespace gifout
+}  // namespace optigif
 
-#endif  // GIFOUTCPP_GIF_ENCODER_HPP
+#endif  // OPTIGIF_GIF_ENCODER_HPP

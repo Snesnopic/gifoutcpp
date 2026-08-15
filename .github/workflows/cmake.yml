@@ -18,35 +18,35 @@ jobs:
           - name: Windows x64
             os: windows-2022
             cmake_args: -A x64
-            asset_name: gifoutcpp-windows-x64
+            asset_name: optigif-windows-x64
 
           - name: Windows ARM64
             os: windows-2022
             cmake_args: -A ARM64
-            asset_name: gifoutcpp-windows-arm64
+            asset_name: optigif-windows-arm64
 
           - name: Windows x86
             os: windows-2022
             cmake_args: -A Win32
-            asset_name: gifoutcpp-windows-x86
+            asset_name: optigif-windows-x86
 
           - name: Ubuntu x64 GCC
             os: ubuntu-24.04
             compiler_c: gcc
             compiler_cxx: g++
-            asset_name: gifoutcpp-linux-x64-gcc
+            asset_name: optigif-linux-x64-gcc
 
           - name: Ubuntu x64 Clang
             os: ubuntu-24.04
             compiler_c: clang
             compiler_cxx: clang++
-            asset_name: gifoutcpp-linux-x64-clang
+            asset_name: optigif-linux-x64-clang
 
           - name: Ubuntu ARM64 GCC
             os: ubuntu-24.04-arm
             compiler_c: gcc
             compiler_cxx: g++
-            asset_name: gifoutcpp-linux-arm64
+            asset_name: optigif-linux-arm64
 
           - name: Ubuntu x86 GCC
             os: ubuntu-24.04
@@ -54,15 +54,15 @@ jobs:
             compiler_cxx: g++
             cmake_args: -DCMAKE_CXX_FLAGS=-m32 -DCMAKE_C_FLAGS=-m32
             install_deps: sudo apt-get update && sudo apt-get install -y g++-multilib
-            asset_name: gifoutcpp-linux-x86
+            asset_name: optigif-linux-x86
 
           - name: macOS Intel
             os: macos-15-intel
-            asset_name: gifoutcpp-darwin-x64
+            asset_name: optigif-darwin-x64
 
           - name: macOS ARM64
             os: macos-14
-            asset_name: gifoutcpp-darwin-arm64
+            asset_name: optigif-darwin-arm64
 
     steps:
       - uses: actions/checkout@v7
@@ -88,9 +88,9 @@ jobs:
         with:
           name: ${{ matrix.asset_name }}
           path: |
-            build/gifoutcpp
-            build/gifoutcpp.exe
-            build/Release/gifoutcpp.exe
+            build/optigif
+            build/optigif.exe
+            build/Release/optigif.exe
 
   build-freebsd:
     name: ${{ matrix.asset_name }}
@@ -100,10 +100,10 @@ jobs:
       matrix:
         include:
           - arch: x86_64
-            asset_name: gifoutcpp-freebsd-x64
+            asset_name: optigif-freebsd-x64
             release: '15.0'
           - arch: aarch64
-            asset_name: gifoutcpp-freebsd-arm64
+            asset_name: optigif-freebsd-arm64
             release: '15.0'
 
     steps:
@@ -124,4 +124,4 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.asset_name }}
-          path: build/gifoutcpp
+          path: build/optigif

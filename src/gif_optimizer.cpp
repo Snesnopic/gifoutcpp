@@ -1,13 +1,13 @@
-#include "gifoutcpp/gif_optimizer.hpp"
+#include "optigif/gif_optimizer.hpp"
 
 #include <algorithm>
 #include <array>
 #include <unordered_map>
 
 #include "gif_parallel.hpp"
-#include "gifoutcpp/gif_encoder.hpp"
+#include "optigif/gif_encoder.hpp"
 
-namespace gifout {
+namespace optigif {
 namespace {
 
 // every frame is lifted into one shared color space before anything else, because
@@ -213,7 +213,9 @@ private:
         std::vector<uint16_t> prev = walker.advance(0);
         for (std::size_t i = 1; i < n; ++i) {
             Rect needed;
-            const std::vector<uint16_t> cur = walker.advance(i);
+            // the walker owns this canvas until the next advance, and prev takes its own
+            // copy below, so reading it through a reference costs nothing
+            const std::vector<uint16_t>& cur = walker.advance(i);
             unsigned min_x = width_;
             unsigned min_y = height_;
             unsigned max_x = 0;
@@ -235,7 +237,7 @@ private:
                 disposal_[i - 1] = Disposal::Background;
                 clear_rect_[i - 1] = needed;
             }
-            prev = std::move(cur);
+            prev = cur;
         }
     }
 
@@ -380,10 +382,7 @@ private:
             frame.raw_local_size_bits = 0;
 
             canvas = target;
-            if (disposal_[i] == Disposal::Background) {
-                Frame erased = frame;
-                erase(canvas, erased);
-            }
+            if (disposal_[i] == Disposal::Background) erase(canvas, frame);
 
             out.push_back(std::move(frame));
             new_pixels_.push_back(std::move(pixels));
@@ -742,4 +741,4 @@ OptimizeStats unoptimize(Stream& stream) {
     return Optimizer(stream, options).run();
 }
 
-}  // namespace gifout
+}  // namespace optigif

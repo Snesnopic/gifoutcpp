@@ -1,9 +1,9 @@
-#include "gifoutcpp/gif_lzw.hpp"
+#include "optigif/gif_lzw.hpp"
 
 #include <array>
 #include <string>
 
-namespace gifout {
+namespace optigif {
 namespace {
 
 constexpr int kMaxCodeBits = 12;
@@ -167,4 +167,4 @@ DecodeResult decode_lzw(std::span<const uint8_t> lzw, uint8_t min_code_size,
     return result;
 }
 
-}  // namespace gifout
+}  // namespace optigif

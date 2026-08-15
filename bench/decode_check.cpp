@@ -5,7 +5,7 @@
 #include <cstring>
 #include <string>
 
-#include "gifoutcpp/gif_reader.hpp"
+#include "optigif/gif_reader.hpp"
 
 extern "C" {
 #include <lcdfgif/gif.h>
@@ -27,7 +27,7 @@ int main(int argc, char** argv) {
     }
     const char* path = argv[1];
 
-    auto ours = gifout::read_gif_file(path);
+    auto ours = optigif::read_gif_file(path);
     if (!ours.ok) return fail(path, "our reader rejected the file");
 
     std::FILE* f = std::fopen(path, "rb");

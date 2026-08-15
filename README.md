@@ -1,4 +1,4 @@
-# gifoutcpp
+# optigif
 
 Lossless GIF recompression in C++20. One parse, one in-memory model, one writer: the
 structural optimizer and the LZW optimizer work on the same data instead of handing
@@ -25,7 +25,7 @@ than either tool it learned from.
 It is **not** a replacement for gifsicle, which is an editor: gifsicle also resizes,
 crops, rotates, quantizes colours (lossy), merges files, extracts and deletes frames,
 rewrites delays and loop counts by hand, and ships a viewer and a comparison tool.
-gifoutcpp does exactly one of those jobs. If you want `--colors 64 --resize 50%`, you
+optigif does exactly one of those jobs. If you want `--colors 64 --resize 50%`, you
 want gifsicle.
 
 ## Two levels of lossless
@@ -75,7 +75,7 @@ are deterministic; timings mean nothing on a loaded machine.
 * **A read/write round trip is byte-identical on 50/51 files.** The exception carries
   3086 bytes of zero padding after the GIF trailer, dropped on purpose.
 * **Every optimized output is rendering-identical** (`gifdiff -w`), at every setting.
-* 911 unit checks, run also under AddressSanitizer, UndefinedBehaviorSanitizer and
+* 916 unit checks, run also under AddressSanitizer, UndefinedBehaviorSanitizer and
   ThreadSanitizer; two libFuzzer targets; a fuzz run and an external-consumer build on
   every push, across 11 platforms.
 
@@ -87,16 +87,16 @@ cmake --build build
 ctest --test-dir build
 ```
 
-Two targets: `gifout_core` (the library) and `gifoutcpp` (a thin CLI over it). The
+Two targets: `optigif_core` (the library) and `optigif` (a thin CLI over it). The
 research harness under `bench/` is off by default because it links gifsicle and
 flexiGIF out of a [chisel](https://github.com/Snesnopic/chisel) checkout:
-`-DGIFOUT_BUILD_BENCH=ON -DCHISEL_ROOT=../chisel`. The fuzz targets need a clang that
-ships the runtime: `-DGIFOUT_BUILD_FUZZERS=ON`, see `fuzz/README.md`.
+`-DOPTIGIF_BUILD_BENCH=ON -DCHISEL_ROOT=../chisel`. The fuzz targets need a clang that
+ships the runtime: `-DOPTIGIF_BUILD_FUZZERS=ON`, see `fuzz/README.md`.
 
 ## Usage
 
 ```
-gifoutcpp [options] <input.gif> [output.gif]
+optigif [options] <input.gif> [output.gif]
 
   -O, --optimize      rebuild frames and palettes, keeping only the rendered result
   -u, --unoptimize    expand every frame back to full screen, disposal applied
@@ -141,26 +141,26 @@ than a guess:
 ## Using it as a library
 
 ```cpp
-#include <gifoutcpp/gifoutcpp.hpp>
+#include <optigif/optigif.hpp>
 
-gifout::Options options;
+optigif::Options options;
 options.restructure = true;      // crop frames, pick disposal, rebuild palettes
 options.search_restarts = true;  // search the lzw restart points
 options.search.threads = 0;      // 0 means as many as the machine has
 
-const auto r = gifout::recompress_file("in.gif", "out.gif", options);
+const auto r = optigif::recompress_file("in.gif", "out.gif", options);
 if (r.ok && r.smaller()) { /* keep it */ }
 ```
 
 `recompress` does the same in memory, and `recompress_stream` takes a `Stream` the
 caller already has, so a consumer can inspect or edit frames between the stages.
-Everything reachable from `gifoutcpp/gifoutcpp.hpp` is the supported surface; anything
+Everything reachable from `optigif/optigif.hpp` is the supported surface; anything
 under `src/` is not.
 
 ```
 cmake --install build --prefix /somewhere
-find_package(gifoutcpp REQUIRED)
-target_link_libraries(app PRIVATE gifoutcpp::core)
+find_package(optigif REQUIRED)
+target_link_libraries(app PRIVATE optigif::core)
 ```
 
 CI installs the library and builds an external consumer against it on every push, so

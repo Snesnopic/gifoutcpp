@@ -7,17 +7,17 @@
  * reader repairs what it can and reports through a list of diagnostics, because a file
  * a viewer displays has to be readable here too.
  */
-#ifndef GIFOUTCPP_GIF_READER_HPP
-#define GIFOUTCPP_GIF_READER_HPP
+#ifndef OPTIGIF_GIF_READER_HPP
+#define OPTIGIF_GIF_READER_HPP
 
 #include <cstddef>
 #include <filesystem>
 #include <span>
 #include <vector>
 
-#include "gifoutcpp/gif_types.hpp"
+#include "optigif/gif_types.hpp"
 
-namespace gifout {
+namespace optigif {
 
 /** @brief What came out of a parse: the stream, and everything odd that was noticed. */
 struct ReadResult {
@@ -59,6 +59,6 @@ ReadResult read_gif(std::span<const uint8_t> data, const ReadOptions& options = 
  */
 ReadResult read_gif_file(const std::filesystem::path& path, const ReadOptions& options = {});
 
-}  // namespace gifout
+}  // namespace optigif
 
-#endif  // GIFOUTCPP_GIF_READER_HPP
+#endif  // OPTIGIF_GIF_READER_HPP

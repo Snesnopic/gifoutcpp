@@ -1,10 +1,10 @@
-#include "gifoutcpp/gif_writer.hpp"
+#include "optigif/gif_writer.hpp"
 
 #include <algorithm>
 #include <bit>
 #include <cstdio>
 
-namespace gifout {
+namespace optigif {
 namespace {
 
 void put_byte(std::vector<uint8_t>& out, uint8_t v) { out.push_back(v); }
@@ -152,4 +152,4 @@ bool write_gif_file(const Stream& stream, const std::filesystem::path& path,
     return ok;
 }
 
-}  // namespace gifout
+}  // namespace optigif

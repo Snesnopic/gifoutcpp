@@ -37,7 +37,7 @@ HeaderFilterRegex: '(include|src)/.*\.(hpp|cpp)$'
 #     implicit-bool-conversion: house style
 #   non-private-member-variables: the model types are deliberately plain structs
 #   use-internal-linkage: it flags the public api, whose definitions live in .cpp
-#     files while the declarations sit in include/gifoutcpp
+#     files while the declarations sit in include/optigif
 #   infinite-loop: it misreads `for (i = n; i-- > 1;)`, where the condition steps
 #   easily-swappable-parameters: geometry really does come as (width, height)
 #   const-correctness: it flags variables that are mutated through member calls and

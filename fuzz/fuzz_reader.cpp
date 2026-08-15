@@ -5,7 +5,7 @@
 #include <cstdint>
 #include <vector>
 
-#include "gifoutcpp/gifoutcpp.hpp"
+#include "optigif/optigif.hpp"
 
 namespace {
 
@@ -13,7 +13,7 @@ namespace {
 // run degenerates into one enormous input per minute
 constexpr std::size_t kMaxPixelsForSearch = 40000;
 
-std::size_t pixel_count(const gifout::Stream& stream) {
+std::size_t pixel_count(const optigif::Stream& stream) {
     std::size_t total = 0;
     for (const auto& f : stream.frames) total += f.pixel_count();
     return total;
@@ -25,14 +25,14 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
     if (size > (1u << 20)) return 0;
     std::span<const uint8_t> input(data, size);
 
-    auto read = gifout::read_gif(input);
+    auto read = optigif::read_gif(input);
     if (!read.ok) return 0;
 
     const std::size_t pixels = pixel_count(read.stream);
     if (pixels > kMaxPixelsForSearch) return 0;
 
     for (const bool restructure : {false, true}) {
-        gifout::Options options;
+        optigif::Options options;
         options.restructure = restructure;
         options.search_restarts = restructure;
         options.strip_metadata = restructure;
@@ -40,14 +40,14 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
         options.search.max_tokens = 2000;
 
         std::vector<uint8_t> out;
-        const auto result = gifout::recompress(input, out, options);
+        const auto result = optigif::recompress(input, out, options);
         if (!result.ok) continue;
 
         // whatever we produce has to be readable by us, with no repairs needed
-        auto again = gifout::read_gif(out);
+        auto again = optigif::read_gif(out);
         if (!again.ok) __builtin_trap();
         for (const auto& d : again.diagnostics)
-            if (d.severity == gifout::Severity::Error) __builtin_trap();
+            if (d.severity == optigif::Severity::Error) __builtin_trap();
     }
     return 0;
 }

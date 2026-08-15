@@ -5,7 +5,7 @@ runs the pinned corpus through each mode, checks every output renders identicall
 with gifdiff when it is on PATH, and prints the table. this is what makes the
 claims checkable by somebody who is not us.
 
-usage: report.py [--binary build/gifoutcpp] [--jobs N]
+usage: report.py [--binary build/optigif] [--jobs N]
 """
 import json
 import os
@@ -17,7 +17,7 @@ import time
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 CORPUS = os.path.join(HERE, "corpus")
-WORK = "/tmp/gifout_report"
+WORK = "/tmp/optigif_report"
 
 MODES = [
     ("copy", ["--copy"]),
@@ -33,7 +33,7 @@ def arg(name, default):
 
 
 def main():
-    binary = os.path.join(ROOT, arg("--binary", "build/gifoutcpp"))
+    binary = os.path.join(ROOT, arg("--binary", "build/optigif"))
     threads = arg("--jobs", "0")
     if not os.path.exists(binary):
         sys.exit(f"no binary at {binary}, build it first")
